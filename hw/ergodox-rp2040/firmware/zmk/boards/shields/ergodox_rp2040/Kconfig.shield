@@ -1,0 +1,14 @@
+# Copyright (c) 2026 The ErgoDox RP2040 contributors
+# SPDX-License-Identifier: MIT
+
+config SHIELD_ERGODOX_RP2040_LEFT_CENTRAL
+    def_bool $(shields_list_contains,ergodox_rp2040_left_central)
+
+config SHIELD_ERGODOX_RP2040_LEFT_PERIPHERAL
+    def_bool $(shields_list_contains,ergodox_rp2040_left_peripheral)
+
+config SHIELD_ERGODOX_RP2040_RIGHT_CENTRAL
+    def_bool $(shields_list_contains,ergodox_rp2040_right_central)
+
+config SHIELD_ERGODOX_RP2040_RIGHT_PERIPHERAL
+    def_bool $(shields_list_contains,ergodox_rp2040_right_peripheral)

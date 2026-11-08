@@ -1,0 +1,148 @@
+/*
+ * Copyright (c) 2026 The ErgoDox RP2040 contributors
+ * SPDX-License-Identifier: MIT
+ *
+ * Applied only for the rpi_pico/rp2040/zmk target. This is not a Pico HAT.
+ * The Pico board devicetree is the RP2040 with a 12 MHz crystal and native USB.
+ * Overrides below stop the Pico from claiming this PCB's GPIOs.
+ *
+ * HOST_VBUS_SENSE is GPIO26 / ADC0 through the 100k/100k divider. It stays an
+ * ADC pin. ZMK role is compile-time, so this pin is not a gpio-hog and does
+ * not select central. CC1, CC2, and LINK VBUS are the other three ADC inputs.
+ *
+ * LED chain, index 1 first, fed from GPIO2. Same index order on both halves.
+ * ZMK underglow has no per-key map; the wire order is the order below.
+ *  1 SW0:7  ROW0 COL6
+ *  2 SW0:9  ROW0 COL4
+ *  3 SW0:12 ROW0 COL1
+ *  4 SW0:8  ROW0 COL5
+ *  5 SW0:11 ROW0 COL11
+ *  6 SX0:11 ROW0 COL11
+ *  7 SW0:10 ROW0 COL10
+ *  8 SX0:10 ROW0 COL10
+ *  9 SW1:13 ROW1 COL0
+ * 10 SW1:12 ROW1 COL1
+ * 11 SW1:11 ROW1 COL11
+ * 12 SW1:10 ROW1 COL10
+ * 13 SW1:9  ROW1 COL4
+ * 14 SX1:8  ROW1 COL5
+ * 15 SX1:7  ROW1 COL6
+ * 16 SW2:7  ROW2 COL6
+ * 17 SW2:8  ROW2 COL5
+ * 18 SW2:9  ROW2 COL4
+ * 19 SW2:10 ROW2 COL10
+ * 20 SW2:11 ROW2 COL11
+ * 21 SW2:12 ROW2 COL1
+ * 22 SW2:13 ROW2 COL0
+ * 23 SW3:13 ROW3 COL0
+ * 24 SW3:12 ROW3 COL1
+ * 25 SW3:11 ROW3 COL11
+ * 26 SW3:10 ROW3 COL10
+ * 27 SW3:9  ROW3 COL4
+ * 28 SW3:8  ROW3 COL5
+ * 29 SW4:7  ROW4 COL6
+ * 30 SW4:8  ROW4 COL5
+ * 31 SW4:9  ROW4 COL4
+ * 32 SW4:10 ROW4 COL10
+ * 33 SW4:11 ROW4 COL11
+ * 34 SW4:12 ROW4 COL1
+ * 35 SW4:13 ROW4 COL0
+ * 36 SW5:13 ROW5 COL0
+ * 37 SW5:12 ROW5 COL1
+ * 38 SW5:11 ROW5 COL11
+ * 39 SW5:10 ROW5 COL10
+ * 40 SW5:9  ROW5 COL4
+ * 41 SW5:8  ROW5 COL5
+ * 42 SW5:7  ROW5 COL6
+ *
+ * Color order is the ZMK/Zephyr WS2812 example (GRB). The OPSCO SK6812 channel
+ * order was not read from its datasheet. Confirm before the first light-up.
+ * Frame bytes and the 4 MHz clock are copied from that example, not retuned.
+ */
+
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/led/led.h>
+#include <zephyr/dt-bindings/pinctrl/rpi-pico-rp2040-pinctrl.h>
+#include <zephyr/dt-bindings/clock/rpi_pico_rp2040_clock.h>
+
+/ {
+    chosen {
+        zmk,underglow = &led_strip;
+    };
+};
+
+/* Pico defaults are already P0/P1. Restated so the pin check sees them. */
+&uart0_default {
+    group1 {
+        pinmux = <UART0_TX_P0>;
+    };
+    group2 {
+        pinmux = <UART0_RX_P1>;
+        input-enable;
+    };
+};
+
+/* Dividers on GPIO26-29. Do not hog these as digital inputs. */
+&adc_default {
+    group1 {
+        pinmux = <ADC_CH0_P26>, <ADC_CH1_P27>, <ADC_CH2_P28>, <ADC_CH3_P29>;
+        input-enable;
+    };
+};
+
+/* Pico i2c0 uses GPIO4/GPIO5, which are LINK_SRC_REQ and LINK_RP_EN. */
+&i2c0 {
+    status = "disabled";
+};
+
+/* Pico spi0 uses GPIO16-19: COL6, COL10, COL11, and BOARD_ID. */
+&spi0 {
+    status = "disabled";
+};
+
+/* Pico user LED and PWM slice are GPIO25, an unused pulldown on this board. */
+&led0 {
+    status = "disabled";
+};
+
+&pwm {
+    status = "disabled";
+};
+
+&pinctrl {
+    ws2812_pio0_default: ws2812_pio0_default {
+        group1 {
+            pinmux = <PIO0_P2>;
+        };
+    };
+};
+
+&pio0 {
+    status = "okay";
+
+    pio0_spi: pio0_spi {
+        compatible = "raspberrypi,pico-spi-pio";
+        #address-cells = <1>;
+        #size-cells = <0>;
+        pinctrl-0 = <&ws2812_pio0_default>;
+        pinctrl-names = "default";
+        clocks = <&clocks RPI_PICO_CLKID_CLK_SYS>;
+        clock-frequency = <4000000>;
+        /* Data is GPIO2. Clock and MISO are unused pulldowns, not the matrix. */
+        mosi-gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+        clk-gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
+        miso-gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+
+        led_strip: ws2812@0 {
+            compatible = "worldsemi,ws2812-spi";
+            reg = <0>;
+            chain-length = <42>;
+            spi-max-frequency = <4000000>;
+            spi-one-frame = <0x70>;
+            spi-zero-frame = <0x40>;
+            color-mapping = <LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>;
+            status = "okay";
+        };
+    };
+};

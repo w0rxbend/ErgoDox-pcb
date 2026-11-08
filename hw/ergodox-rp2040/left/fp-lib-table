@@ -1,0 +1,5 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "MX_Hotswap")(type "KiCad")(uri "${KIPRJMOD}/../third_party/MX_V2/MX_Hotswap.pretty")(options "")(descr "ai03 MX_V2 commit 0b379eebbeb66c7fd6e82e400b47958ad695614e"))
+  (lib (name "Switch_Misc")(type "KiCad")(uri "${KIPRJMOD}/../third_party/MX_V2/Switch_Misc.pretty")(options "")(descr "ai03 MX_V2 indicator LEDs, not used for SK6812"))
+)

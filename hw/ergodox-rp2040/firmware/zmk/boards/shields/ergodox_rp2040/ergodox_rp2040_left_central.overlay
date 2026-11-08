@@ -1,0 +1,37 @@
+/*
+ * Copyright (c) 2026 The ErgoDox RP2040 contributors
+ * SPDX-License-Identifier: MIT
+ *
+ * Left half, central image. Column order is the user's left-to-right order
+ * on the left board: COL0, COL1, COL11, COL10, COL4, COL5, COL6.
+ * Central presents Rp and requests the LINK source switch. The load switch
+ * stays off unless HOST VBUS is present; that gate is on the PCB.
+ */
+
+#include "ergodox_rp2040.dtsi"
+
+&kscan0 {
+    col-gpios
+        = <&gpio0 12 GPIO_ACTIVE_LOW>
+        , <&gpio0 13 GPIO_ACTIVE_LOW>
+        , <&gpio0 18 GPIO_ACTIVE_LOW>
+        , <&gpio0 17 GPIO_ACTIVE_LOW>
+        , <&gpio0 14 GPIO_ACTIVE_LOW>
+        , <&gpio0 15 GPIO_ACTIVE_LOW>
+        , <&gpio0 16 GPIO_ACTIVE_LOW>
+        ;
+};
+
+&gpio0 {
+    link_src_req: link_src_req {
+        gpio-hog;
+        gpios = <4 GPIO_ACTIVE_HIGH>;
+        output-high;
+    };
+
+    link_rp_en: link_rp_en {
+        gpio-hog;
+        gpios = <5 GPIO_ACTIVE_HIGH>;
+        output-high;
+    };
+};

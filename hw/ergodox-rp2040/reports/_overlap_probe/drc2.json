@@ -1,0 +1,178 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-11-08T13:32:23",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "PTH inside courtyard",
+            "key": "pth_inside_courtyard"
+        },
+        {
+            "description": "NPTH inside courtyard",
+            "key": "npth_inside_courtyard"
+        }
+    ],
+    "included_severities": [
+        "error"
+    ],
+    "kicad_version": "10.0.7",
+    "schematic_parity": [],
+    "source": "overlap.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)",
+            "items": [
+                {
+                    "description": "Pad 1 [<no net>] of C1 on F.Cu",
+                    "pos": {
+                        "x": 9.52,
+                        "y": 10.0
+                    },
+                    "uuid": "49ed944c-2814-47d6-a7b2-9297cd0b4280"
+                },
+                {
+                    "description": "Pad 1 [<no net>] of C2 on F.Cu",
+                    "pos": {
+                        "x": 9.82,
+                        "y": 10.0
+                    },
+                    "uuid": "f58e09e2-56f1-4303-b18d-4a5703ad9537"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1000 mm)",
+            "items": [
+                {
+                    "description": "Pad 2 [<no net>] of C1 on F.Cu",
+                    "pos": {
+                        "x": 10.48,
+                        "y": 10.0
+                    },
+                    "uuid": "aa963ddc-626a-480f-966e-57ce7e97e0dc"
+                },
+                {
+                    "description": "Pad 1 [<no net>] of C2 on F.Cu",
+                    "pos": {
+                        "x": 9.82,
+                        "y": 10.0
+                    },
+                    "uuid": "f58e09e2-56f1-4303-b18d-4a5703ad9537"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)",
+            "items": [
+                {
+                    "description": "Pad 2 [<no net>] of C2 on F.Cu",
+                    "pos": {
+                        "x": 10.78,
+                        "y": 10.0
+                    },
+                    "uuid": "33bccffe-f781-4c07-8fcc-6ba37f2892dc"
+                },
+                {
+                    "description": "Pad 2 [<no net>] of C1 on F.Cu",
+                    "pos": {
+                        "x": 10.48,
+                        "y": 10.0
+                    },
+                    "uuid": "aa963ddc-626a-480f-966e-57ce7e97e0dc"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Courtyards overlap",
+            "items": [
+                {
+                    "description": "Footprint C2",
+                    "pos": {
+                        "x": 10.3,
+                        "y": 10.0
+                    },
+                    "uuid": "4f8c6114-d1b9-487f-8b1c-b920e3e29303"
+                },
+                {
+                    "description": "Footprint C1",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 10.0
+                    },
+                    "uuid": "bceb1863-04f2-461c-85de-7cf3b11b84b6"
+                }
+            ],
+            "severity": "error",
+            "type": "courtyards_overlap"
+        },
+        {
+            "description": "Front solder mask aperture bridges items with different nets",
+            "items": [
+                {
+                    "description": "Pad 1 [<no net>] of C2 on F.Cu",
+                    "pos": {
+                        "x": 9.82,
+                        "y": 10.0
+                    },
+                    "uuid": "f58e09e2-56f1-4303-b18d-4a5703ad9537"
+                },
+                {
+                    "description": "Pad 1 [<no net>] of C1 on F.Cu",
+                    "pos": {
+                        "x": 9.52,
+                        "y": 10.0
+                    },
+                    "uuid": "49ed944c-2814-47d6-a7b2-9297cd0b4280"
+                }
+            ],
+            "severity": "error",
+            "type": "solder_mask_bridge"
+        },
+        {
+            "description": "Front solder mask aperture bridges items with different nets",
+            "items": [
+                {
+                    "description": "Pad 2 [<no net>] of C1 on F.Cu",
+                    "pos": {
+                        "x": 10.48,
+                        "y": 10.0
+                    },
+                    "uuid": "aa963ddc-626a-480f-966e-57ce7e97e0dc"
+                },
+                {
+                    "description": "Pad 2 [<no net>] of C2 on F.Cu",
+                    "pos": {
+                        "x": 10.78,
+                        "y": 10.0
+                    },
+                    "uuid": "33bccffe-f781-4c07-8fcc-6ba37f2892dc"
+                }
+            ],
+            "severity": "error",
+            "type": "solder_mask_bridge"
+        }
+    ]
+}

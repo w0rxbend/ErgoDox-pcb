@@ -1,0 +1,12 @@
+file_format: "1"
+id: ergodox_rp2040
+name: ErgoDox RP2040
+type: shield
+features:
+  - keys
+  - underglow
+siblings:
+  - ergodox_rp2040_left_central
+  - ergodox_rp2040_left_peripheral
+  - ergodox_rp2040_right_central
+  - ergodox_rp2040_right_peripheral

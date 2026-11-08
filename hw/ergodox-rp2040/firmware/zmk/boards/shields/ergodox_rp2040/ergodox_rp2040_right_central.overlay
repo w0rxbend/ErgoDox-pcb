@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2026 The ErgoDox RP2040 contributors
+ * SPDX-License-Identifier: MIT
+ *
+ * Right half, central image. Local column 0 is the inner key (COL6) and
+ * becomes global column 7 via col-offset. Order: COL6, COL5, COL4, COL10,
+ * COL11, COL1, COL0.
+ */
+
+#include "ergodox_rp2040.dtsi"
+
+&default_transform {
+    col-offset = <7>;
+};
+
+&kscan0 {
+    col-gpios
+        = <&gpio0 16 GPIO_ACTIVE_LOW>
+        , <&gpio0 15 GPIO_ACTIVE_LOW>
+        , <&gpio0 14 GPIO_ACTIVE_LOW>
+        , <&gpio0 17 GPIO_ACTIVE_LOW>
+        , <&gpio0 18 GPIO_ACTIVE_LOW>
+        , <&gpio0 13 GPIO_ACTIVE_LOW>
+        , <&gpio0 12 GPIO_ACTIVE_LOW>
+        ;
+};
+
+&gpio0 {
+    link_src_req: link_src_req {
+        gpio-hog;
+        gpios = <4 GPIO_ACTIVE_HIGH>;
+        output-high;
+    };
+
+    link_rp_en: link_rp_en {
+        gpio-hog;
+        gpios = <5 GPIO_ACTIVE_HIGH>;
+        output-high;
+    };
+};

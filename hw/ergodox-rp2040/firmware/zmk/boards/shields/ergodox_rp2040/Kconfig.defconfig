@@ -1,0 +1,41 @@
+# Copyright (c) 2026 The ErgoDox RP2040 contributors
+# SPDX-License-Identifier: MIT
+
+if SHIELD_ERGODOX_RP2040_LEFT_CENTRAL || SHIELD_ERGODOX_RP2040_RIGHT_CENTRAL
+
+config ZMK_SPLIT_ROLE_CENTRAL
+    default y
+
+# 14 characters. ZMK requires the USB/BT name to be 16 or shorter.
+config ZMK_KEYBOARD_NAME
+    default "ErgoDox RP2040"
+
+endif
+
+if SHIELD_ERGODOX_RP2040_LEFT_CENTRAL || SHIELD_ERGODOX_RP2040_LEFT_PERIPHERAL || \
+    SHIELD_ERGODOX_RP2040_RIGHT_CENTRAL || SHIELD_ERGODOX_RP2040_RIGHT_PERIPHERAL
+
+config ZMK_SPLIT
+    default y
+
+config ZMK_RGB_UNDERGLOW
+    default y
+
+# Percent, 0-100. DESIGN.md section 14 caps both halves at 10% of full-scale white.
+config ZMK_RGB_UNDERGLOW_BRT_MAX
+    default 10
+
+config ZMK_RGB_UNDERGLOW_BRT_START
+    default 10
+
+# Stays off until the user turns RGB on. ZMK has no USB-configured hook here.
+config ZMK_RGB_UNDERGLOW_ON_START
+    default n
+
+config ZMK_RGB_UNDERGLOW_EXT_POWER
+    default y
+
+config ZMK_POINTING
+    default y
+
+endif
