@@ -64,9 +64,13 @@ Y_SPLIT = 51.6
 DIODE_AT = (-5.2, 1.85)
 LED_AT = (0.0, 5.08)
 LED_VIA_OUT = 1.4  # pad centre to plane via, along the LED long axis
-ROW_STUB_END = (5.842, -7.4)  # switch-local end of the row stub, above socket pad 2
+ROW_STUB_END = (5.842, -6.9)  # switch-local end of the row stub, above socket pad 2
 PLANE_NETS = {"GND", "+3V3", "LED_5V"}
-U1_VIA_RING = 2.35  # plane vias under U1 sit this far from its centre
+# Fixed copper keeps this gap. It must exceed the clearance the router is given
+# (0.15 + 0.03 mm in route.py), or the router sees violations and gives up nearby.
+ROUTER_GAP = 0.19
+U1_VIA_RING = 2.35
+U1_ELBOW = 2.7  # inside the pin row, whose pads end 3.0 mm from the centre  # plane vias under U1 sit this far from its centre
 U1_MOAT = 7.0  # half-width kept free of late parts around U1, for pin escape
 # Cells turned 180 degrees so a socket pad clears a mounting hole. The plate
 # cutout is square, so the switch goes in turned as well.
@@ -279,13 +283,13 @@ def plane_vias(board):
     u1 = board.FindFootprintByReference("U1").GetPosition()
     u1x, u1y = mm(u1.x), mm(u1.y)
 
-    def clear(x, y, half, net, own, copper_gap=0.17):
+    def clear(x, y, half, net, own, copper_gap=ROUTER_GAP):
         me = (x - half, y - half, x + half, y + half)
         for pad in pads:
-            if pad is own:
-                gap = 0.05
-            elif pad.GetNetname() == net and not pad.GetDrillSizeX():
-                continue
+            if pad.GetNetname() == net and not pad.GetDrillSizeX():
+                if half < 0.3:
+                    continue  # a stub may cross copper of its own net
+                gap = ROUTER_GAP  # the router wants a via clear of every SMD pad, same net or not
             else:
                 gap = 0.25 if pad.GetDrillSizeX() else copper_gap
             if hit(me, pad_box(pad), gap):
@@ -294,26 +298,29 @@ def plane_vias(board):
 
     def stub_clear(a, b, net):
         steps = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) / 0.1))
-        # 0.14: a stub leaving a 0.4 mm pitch pin sits exactly 0.15 mm from its neighbours.
-        return all(clear(a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps, 0.1, net, None, 0.14)
+        return all(clear(a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps, 0.1, net, None)
                    for i in range(steps + 1))
 
     def candidates(pad, px, py):
         fp = pad.GetParentFootprint()
         if fp.GetReference() == "U1":  # under the package, between the pin row and the centre pad
             dx, dy = px - u1x, py - u1y
-            for slide in (0.0, 0.1, 0.15, 0.2):  # corner pins slide toward the middle of their row
+            # Corner pins slide toward the middle of their row. The stub first runs
+            # straight in past the pin row, then turns, so it clears the next pin.
+            for slide in (0.0, 0.1, 0.2, 0.3):
                 if abs(dx) > abs(dy):
-                    yield u1x + math.copysign(U1_VIA_RING, dx), py - math.copysign(slide, dy)
+                    yield (u1x + math.copysign(U1_VIA_RING, dx), py - math.copysign(slide, dy),
+                           (u1x + math.copysign(U1_ELBOW, dx), py))
                 else:
-                    yield px - math.copysign(slide, dx), u1y + math.copysign(U1_VIA_RING, dy)
+                    yield (px - math.copysign(slide, dx), u1y + math.copysign(U1_VIA_RING, dy),
+                           (px, u1y + math.copysign(U1_ELBOW, dy)))
             return
         cx, cy = mm(fp.GetPosition().x), mm(fp.GetPosition().y)
         away = math.atan2(py - cy, px - cx)
         for dist in (0.7, 0.9, 1.1, 1.4, 1.8, 2.3, 3.0):
             for turn in (0, 45, -45, 90, -90, 135, -135, 180):
                 angle = round(math.degrees(away) / 45) * 45 + turn
-                yield px + dist * math.cos(math.radians(angle)), py + dist * math.sin(math.radians(angle))
+                yield px + dist * math.cos(math.radians(angle)), py + dist * math.sin(math.radians(angle)), None
 
     missed = []
     for pad in pads:
@@ -323,27 +330,34 @@ def plane_vias(board):
         if net not in PLANE_NETS or pad.GetDrillSizeX() or ref.startswith("DS") or centre_pad:
             continue
         px, py = mm(pad.GetPosition().x), mm(pad.GetPosition().y)
-        spot = None
+        def path_clear(path):
+            return all(stub_clear(a, b, net) for a, b in zip(path, path[1:]))
+
+        path, new_via = None, False
+        elbow = next(candidates(pad, px, py))[2]  # same first leg as a new via would use
         for vx, vy, vnet in vias:  # share a via that is already beside the pad
-            if vnet == net and math.hypot(vx - px, vy - py) < 1.3 and stub_clear((px, py), (vx, vy), net):
-                spot = (vx, vy, False)
+            route = [(px, py)] + ([elbow] if elbow else []) + [(vx, vy)]
+            if vnet == net and math.hypot(vx - px, vy - py) < 1.3 and path_clear(route):
+                path = route
                 break
-        if spot is None:
-            for vx, vy in candidates(pad, px, py):
+        if path is None:
+            for vx, vy, elbow in candidates(pad, px, py):
+                route = [(px, py)] + ([elbow] if elbow else []) + [(vx, vy)]
                 near = [math.hypot(vx - ox, vy - oy) for ox, oy, _ in vias]
-                if all(d >= 0.9 for d in near) and clear(vx, vy, 0.3, net, pad) and stub_clear((px, py), (vx, vy), net):
-                    spot = (vx, vy, True)
+                if all(d >= 0.9 for d in near) and clear(vx, vy, 0.3, net, pad) and path_clear(route):
+                    path, new_via = route, True
                     break
-        if spot is None:
+        if path is None:
             missed.append(f"{ref}.{pad.GetNumber()}")
             continue
         layer = pcbnew.B_Cu if pad.IsOnLayer(pcbnew.B_Cu) else pcbnew.F_Cu
-        track = add_track(board, pad.GetNet(), layer, (px, py), spot[:2], 0.2)
-        if track:
-            track.SetLocked(True)
-        if spot[2]:
-            add_via(board, pad.GetNet(), spot[0], spot[1]).SetLocked(True)
-            vias.append((spot[0], spot[1], net))
+        for a, b in zip(path, path[1:]):
+            track = add_track(board, pad.GetNet(), layer, a, b, 0.2)
+            if track:
+                track.SetLocked(True)
+        if new_via:
+            add_via(board, pad.GetNet(), *path[-1]).SetLocked(True)
+            vias.append((*path[-1], net))
     if missed:
         print(f"no plane via for {missed}", flush=True)
 

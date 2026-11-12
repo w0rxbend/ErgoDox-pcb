@@ -6,6 +6,16 @@ An ErgoDox split keyboard PCB rebuilt around an RP2040 in each half, with ZMK fi
 
 Project page: <https://w0rxbend.github.io/ErgoDox-pcb/>
 
+![Front of the left and right boards](docs/img/boards-front.png)
+
+Front, left and right half. The switches plug in from this side. The small squares are the LED cutouts.
+
+![Back of the right and left boards](docs/img/boards-back.png)
+
+Back, seen from behind, so the right half is on the left. Sockets, diodes, LEDs and the controller are all here.
+
+These are KiCad 3D renders of the current placement. The signal tracks are not routed yet, and the USB-C receptacles and buttons have no 3D model, so only their pads show on the front.
+
 ## What it is
 
 | | Original ErgoDox (2016) | ErgoDox RP2040 |
@@ -59,6 +69,16 @@ The script runs these steps for both halves:
 3. Freerouting routes the board. This takes up to 30 minutes per half.
 4. `route.py import` reads the routes back.
 5. `kicad-cli pcb drc` fills the zones and writes the reports to `hw/ergodox-rp2040/reports`.
+
+Render the boards again after a change:
+
+```sh
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/work -w /work/hw/ergodox-rp2040 \
+  kicad/kicad:10.0.7-full kicad-cli pcb render --side top --background transparent \
+  -o /work/right-front.png right/ergodox-rp2040-right.kicad_pcb
+```
+
+Use `--side bottom` for the back. The README images are the left and right renders joined side by side.
 
 Check the firmware pin map against the schematics with:
 
