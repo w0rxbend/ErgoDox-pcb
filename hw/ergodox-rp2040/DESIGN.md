@@ -8,7 +8,7 @@ The legacy tree `ErgoDOX pcb/` and `ErgoDox Acrylic Case/` is read-only.
 
 Each half is its own RP2040 board. A standard USB 2.0 C-to-C cable between the two LINK receptacles carries full-duplex UART, not USB. ZMK has no stable USB split transport. See section 3.
 
-The right-hand project copies the legacy PCB geometry. That geometry matches the Litster Standard Right plate. The left-hand project is the in-plane mirror that matches the Standard Left plate. Switches stay on the front. This is not the legacy reversible single PCB.
+The right-hand project copies the legacy PCB geometry. That geometry matches the Litster Standard Right plate. The left-hand project is the in-plane mirror that matches the Standard Left plate. Switches plug in from the front. Hotswap sockets, diodes, LEDs and the controller are on the back. Only the two USB-C receptacles and the two buttons are on the front. The left board mirrors part positions, never footprints: a mirrored QFN or socket is not a real part, so each side is placed and routed on its own. This is not the legacy reversible single PCB.
 
 One Python script generates both projects. The only intentional differences are:
 
@@ -26,7 +26,7 @@ Words, one half:
 - LINK USB-C is not a PC port. Its D+ and D− are UART TX and RX, with series resistors and an ESD diode. Its CC pins switch between Rd (sink) and Rp (source). Its VBUS is either sunk onto the 5 V rail through a second Schottky, or sourced from the 5 V rail through a high-side load switch.
 - The half that sees HOST VBUS is the power source on LINK. The other half is the power sink. That power role is hardware and runtime. The ZMK central/peripheral role is not. See section 3.
 - +5 V feeds the AP2112K-3.3 LDO and the LED 5 V load switch. The LDO feeds every RP2040 3.3 V pin and the flash. The on-chip regulator makes 1.1 V for the core.
-- 42 MX hotswap positions (38 plate keys plus 4 alternate thumbs) form a diode matrix on GPIO. No I/O expander. One SK6812 per position, one chain, data from one GPIO, power from the switched 5 V rail.
+- 38 MX hotswap positions, the keys of the Litster Standard plate, form a diode matrix on GPIO. No I/O expander. The 4 legacy alternate thumb positions are dropped: their sockets overlap the main thumb sockets and cannot be assembled. One reverse-mount SK6812MINI-E per key shines up through a board cutout under the switch. One chain, data from one GPIO, power from the switched 5 V rail.
 - BOOTSEL is a button on QSPI CS through 1 kΩ. RESET is a button on RUN.
 
 ## 3. ZMK role versus power role
@@ -62,7 +62,7 @@ Devicetree shape, pins from section 9, not from the ZMK example (that example us
 
 Both images use the same UART node. ZMK does not document a baud. Do not copy 115200 from a console node and call it a split requirement. Both halves must be set to the same speed. Pick it when the firmware is written and record it there.
 
-Underglow is `CONFIG_ZMK_RGB_UNDERGLOW=y` with `chain-length = <42>` on each half, not 84. The ZMK lighting page says per-key LEDs of the WS2812 family, including SK6812, use underglow. Drive the chain with the PIO SPI pattern on that page, on GPIO2, not on the example's GPIO0.
+Underglow is `CONFIG_ZMK_RGB_UNDERGLOW=y` with `chain-length = <38>` on each half, not 76. The ZMK lighting page says per-key LEDs of the WS2812 family, including SK6812, use underglow. Drive the chain with the PIO SPI pattern on that page, on GPIO2, not on the example's GPIO0.
 
 ## 4. Power tree
 
@@ -73,7 +73,7 @@ HOST VBUS ----|>|---- +5V ----+---- AP2112K-3.3 EN=VIN ---- +3V3 ---- RP2040 IOV
                               |                                 +---- RP2040 VREG_OUT 1.1 V
                               |                                       tied to both DVDD
                               |
-                              +---- TPS22917 (LED) ---- LED_5V ---- 42x SK6812
+                              +---- TPS22917 (LED) ---- LED_5V ---- 38x SK6812MINI-E
                               |
                               +---- TPS22917 (LINK source) ---- LINK VBUS
                               |
@@ -126,8 +126,8 @@ The sense divider adds load. It must leave an open pin, pulled up only by 36 kΩ
 
 CC1 and CC2 are separate copies of this circuit.
 
-- Rd path, present with no local power. 5.1 kΩ from CC to a depletion-mode P-channel JFET, source of the JFET at GND, gate at `LINK_RP_EN`. Vgs = 0 keeps the JFET on, which is the unpowered and the peripheral state. `LINK_RP_EN` high turns the JFET off and removes Rd. The JFET MPN and LCSC are unverified. Do not invent them. The datasheet must show on at Vgs = 0 and off at a gate voltage of 3.3 V. An enhancement MOSFET here is wrong: it is off when unpowered, the central never sees Rd, and LINK VBUS never turns on.
-- Rp path. 36 kΩ from +3V3 to an N-channel MOSFET, other side of the MOSFET at CC, gate at `LINK_RP_EN`. On only while sourcing. MPN and LCSC unverified.
+- Rd path, present with no local power. 5.1 kΩ from CC to a depletion-mode P-channel JFET, source of the JFET at GND, gate at `LINK_RP_EN`. Vgs = 0 keeps the JFET on, which is the unpowered and the peripheral state. `LINK_RP_EN` high turns the JFET off and removes Rd. Part: onsemi MMBFJ177LT1G, LCSC C106763, SOT-23 pad 1 drain, 2 source, 3 gate. Its on-resistance (300 Ω on the LCSC page) adds to the 5.1 kΩ Rd. The datasheet Vgs(off) was not re-read against 3.3 V this pass. An enhancement MOSFET here is wrong: it is off when unpowered, the central never sees Rd, and LINK VBUS never turns on.
+- Rp path. 36 kΩ from +3V3 to an N-channel MOSFET, other side of the MOSFET at CC, gate at `LINK_RP_EN`. On only while sourcing. Part: 2N7002, LCSC C8545, basic, SOT-23 pad 1 gate, 2 source, 3 drain.
 - `LINK_RP_EN` has 10 kΩ to GND. It is driven high only when the HOST VBUS divider says HOST is present. Unpowered and peripheral stay at Rd, with Rp off.
 - Sense. CC does not touch a GPIO or an ADC pin directly. A high-value divider brings each CC to ADC1 and ADC2. The divider load to GND must keep vOPEN above 1.65 V, and 5.5 V on CC must still be at or below 3.0 V on the ADC pin. Resistor LCSC cells stay blank until those parts are opened.
 - The same rule for VBUS. HOST VBUS and LINK VBUS reach ADC0 and ADC3 only through dividers. 5.5 V at the connector maps to 3.0 V or less on the pin. A compliant USB-C source is 5 V until a PD contract. This board does not speak PD and does not accept a 9/15/20 V contract. The divider is for vSafe5V (5.5 V max), not for a 20 V mis-plug. That 20 V case is outside this contract.
@@ -317,30 +317,24 @@ Legacy electrical positions, from `ErgoDOX pcb/ErgoDOX.net`. Each socket gets it
 | SW5:11 | ROW5 | COL11 | plate key |
 | SW5:12 | ROW5 | COL1 | plate key |
 | SW5:13 | ROW5 | COL0 | plate key |
-| SX0:10 | ROW0 | COL10 | alternate thumb, same nets as SW0:10, not on the Standard plate |
-| SX0:11 | ROW0 | COL11 | alternate thumb, same nets as SW0:11, not on the Standard plate |
-| SX1:7 | ROW1 | COL6 | own position, legacy diode D1:7, not on the Standard plate |
-| SX1:8 | ROW1 | COL5 | own position, legacy diode D1:8, not on the Standard plate |
 
 Empty crossings, do not add a switch: ROW0/COL0, ROW3/COL6.
 
-38 `SW*` references are the plate keys. 42 MX footprints are placed. SX0:10 and SX0:11 are in parallel with the stabilized thumbs, each with its own diode to the same column, so either socket closes that one key. Legacy tied the SX0 switch contact to the main switch's diode anode and left the SX0 diode pins off the netlist. A per-socket diode to the same column is the same key.
+38 `SW*` references are the plate keys, and 38 MX sockets are placed.
 
-Diode: 1N4148W, LCSC C81598, SOD-123, qty 42. KiCad `Diode_SMD:D_SOD-123`.
+Diode: 1N4148W, LCSC C81598, SOD-123, qty 38. KiCad `Diode_SMD:D_SOD-123`.
 
-Hotswap socket: HanElectricity CPG151101S11-16, LCSC C41430893, qty 42, from `notes/parts.md`. That page's manufacturer is not Kailh. A Kailh-branded LCSC page was not opened. The KiCad 10.0.7 image has `Button_Switch_Keyboard` Cherry MX footprints and no footprint whose name matches Hotswap, Kailh, or CPG1511. The Cherry MX 1.00u PCB footprint is a through-hole switch (pads 1 and 2 only), not a socket, and it has no LED pads. Do not substitute it for the socket. Do not draw a socket from memory. Vendor a published hotswap footprint and check its pads against the C41430893 drawing before release. MX switch bodies are not in the assembly BOM. The socket is.
+Hotswap socket: HanElectricity CPG151101S11-16, LCSC C41430893, qty 38, from `notes/parts.md`. That page's manufacturer is not Kailh. A Kailh-branded LCSC page was not opened. The KiCad 10.0.7 image has `Button_Switch_Keyboard` Cherry MX footprints and no footprint whose name matches Hotswap, Kailh, or CPG1511. The Cherry MX 1.00u PCB footprint is a through-hole switch (pads 1 and 2 only), not a socket, and it has no LED pads. Do not substitute it for the socket. Do not draw a socket from memory. Vendor a published hotswap footprint and check its pads against the C41430893 drawing before release. MX switch bodies are not in the assembly BOM. The socket is.
 
-Switch center and rotation still come from `notes/geometry.json`, including the four SX parts. The socket footprint's origin is that center.
+Switch center and rotation come from `notes/geometry.json`. SW0:12 on the right board is turned 180° so its socket pad clears a mounting hole; the plate cutout is square, so the switch goes in turned too. The socket footprint's origin is that center.
 
 ## 11. LED chain
 
-One OPSCO SK6812, LCSC C5378720, per MX position, including the four SX positions. Qty 42. Power from `LED_5V` only, never from +3V3. Data from GPIO2, one chain, no branch.
+One OPSCO SK6812MINI-E, LCSC C5149201, extended, per key. Qty 38. Power from `LED_5V` only, never from +3V3. Data from GPIO2, one chain, no branch.
 
-`notes/parts.md` records the OPSCO SK6812-012 PDF attached to C5378720: supply 3.7 V to 5.5 V, VIH minimum `0.65 × VDD` at the row whose test condition is `+VDD=5.0V`, which is 3.25 V. VIL maximum `0.3 × VDD`. That 3.25 V number is not above 3.3 V, and the parts note therefore adds no level shifter. The same note records RP2040 datasheet Table 625, digital IO at IOVDD = 3.3 V: VOH minimum 2.62 V. That table was not re-opened from the PDF this pass. 2.62 V is below 3.25 V, so a direct GPIO connection is not guaranteed by those two limits. No shifter is on this BOM because that was the recorded decision. It is a blocker in section 17, not a claim that the levels meet.
+The LED is reverse-mounted on the back and shines up through a cutout under the switch. Footprint: KiCad `LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount`, whose description cites the C5149201 datasheet. The footprint carries its own `Edge.Cuts` cutout. It sits at switch-local (0, +5.08) mm, the MX LED window. Its pads are 0.25 mm from that cutout by design, so `.kicad_dru` lowers the edge clearance to 0.2 mm for `DS*` only.
 
-At the top of the LED range, `0.65 × 5.5 = 3.575 V`, which is above 3.3 V. The no-shifter decision uses the 5.0 V test point printed on the VIH row, not the 5.5 V corner.
-
-KiCad `LED_SMD:LED_OPSCO_SK6812_PLCC4_5.0x5.0mm_P3.1mm` is in the 10.0.7 image. Its description links the SK6812-B datasheet for LCSC C5380881. `notes/parts.md` rejected C5380881 because that PDF's VIH minimum is `0.7 × VDD` at 5.0 V, which is 3.5 V. The selected part's JLCPCB package line is 5.4 × 5 mm. The footprint name says 5.0 × 5.0 mm. Do not treat this footprint as verified for C5378720. Use a published footprint whose drawing matches the C5378720 PDF, and do not draw the pads from memory. Place that footprint at each switch center in `notes/geometry.json` unless the published library documents a different offset, in which case the switch center, not the LED center, is what must match the plate.
+The JLCPCB page lists 3.7 V to 5.5 V supply and 800 kbit/s. The SK6812MINI-E VIH row was not read this pass. The older note for the 5050 SK6812 was VIH minimum `0.65 × VDD` (3.25 V at 5.0 V) against RP2040 VOH minimum 2.62 V. Assume the same margin problem until the MINI-E datasheet is read. No level shifter is fitted. It stays a blocker in section 17.
 
 Chain order is the PCB order and the firmware index. Index 1 is the first LED, fed from GPIO2. The chain snakes by legacy row, and within a row by KiCad X, reversing every other row. Coordinates below are the right-hand board, Y down, from `notes/geometry.json`.
 
@@ -351,43 +345,39 @@ Chain order is the PCB order and the firmware index. Index 1 is the first LED, f
 | 3 | SW0:12 | 50.80000 | 177.80000 | 25 |
 | 4 | SW0:8 | 51.96332 | 135.21944 | 25 |
 | 5 | SW0:11 | 64.03848 | 161.11728 | 115 |
-| 6 | SX0:11 | 68.06438 | 169.74820 | 205 |
-| 7 | SW0:10 | 81.30286 | 153.06548 | 115 |
-| 8 | SX0:10 | 85.33130 | 161.69894 | 205 |
-| 9 | SW1:13 | 186.69000 | 143.20266 | 0 |
-| 10 | SW1:12 | 167.64000 | 143.20266 | 0 |
-| 11 | SW1:11 | 148.59000 | 140.02766 | 0 |
-| 12 | SW1:10 | 129.54000 | 138.43000 | 0 |
-| 13 | SW1:9 | 110.49000 | 140.02766 | 0 |
-| 14 | SX1:8 | 77.27950 | 144.43202 | 25 |
-| 15 | SX1:7 | 60.01512 | 152.48382 | 25 |
-| 16 | SW2:7 | 72.39000 | 117.48516 | 90 |
-| 17 | SW2:8 | 91.44000 | 122.24766 | 0 |
-| 18 | SW2:9 | 110.49000 | 120.97766 | 0 |
-| 19 | SW2:10 | 129.54000 | 119.38000 | 0 |
-| 20 | SW2:11 | 148.59000 | 120.97766 | 0 |
-| 21 | SW2:12 | 167.64000 | 124.15266 | 0 |
-| 22 | SW2:13 | 191.45250 | 124.15266 | 0 |
-| 23 | SW3:13 | 191.45250 | 105.10266 | 0 |
-| 24 | SW3:12 | 167.64000 | 105.10266 | 0 |
-| 25 | SW3:11 | 148.59000 | 101.92766 | 0 |
-| 26 | SW3:10 | 129.54000 | 100.33000 | 0 |
-| 27 | SW3:9 | 110.49000 | 101.92766 | 0 |
-| 28 | SW3:8 | 91.44000 | 103.19766 | 0 |
-| 29 | SW4:7 | 72.39000 | 88.91016 | 90 |
-| 30 | SW4:8 | 91.44000 | 84.14766 | 0 |
-| 31 | SW4:9 | 110.49000 | 82.87766 | 0 |
-| 32 | SW4:10 | 129.54000 | 81.28000 | 0 |
-| 33 | SW4:11 | 148.59000 | 82.87766 | 0 |
-| 34 | SW4:12 | 167.64000 | 86.05266 | 0 |
-| 35 | SW4:13 | 191.45250 | 86.05266 | 0 |
-| 36 | SW5:13 | 191.45250 | 67.00520 | 0 |
-| 37 | SW5:12 | 167.64000 | 67.00520 | 0 |
-| 38 | SW5:11 | 148.59000 | 63.82766 | 0 |
-| 39 | SW5:10 | 129.54000 | 62.23000 | 0 |
-| 40 | SW5:9 | 110.49000 | 63.82766 | 0 |
-| 41 | SW5:8 | 91.44000 | 65.10020 | 0 |
-| 42 | SW5:7 | 72.39000 | 65.10020 | 0 |
+| 6 | 6 | SW0:10 | 81.30286 | 153.06548 | 115 |
+| 8 | 7 | SW1:13 | 186.69000 | 143.20266 | 0 |
+| 8 | SW1:12 | 167.64000 | 143.20266 | 0 |
+| 9 | SW1:11 | 148.59000 | 140.02766 | 0 |
+| 10 | SW1:10 | 129.54000 | 138.43000 | 0 |
+| 11 | SW1:9 | 110.49000 | 140.02766 | 0 |
+| 14 | 15 | 12 | SW2:7 | 72.39000 | 117.48516 | 90 |
+| 13 | SW2:8 | 91.44000 | 122.24766 | 0 |
+| 14 | SW2:9 | 110.49000 | 120.97766 | 0 |
+| 15 | SW2:10 | 129.54000 | 119.38000 | 0 |
+| 16 | SW2:11 | 148.59000 | 120.97766 | 0 |
+| 17 | SW2:12 | 167.64000 | 124.15266 | 0 |
+| 18 | SW2:13 | 191.45250 | 124.15266 | 0 |
+| 19 | SW3:13 | 191.45250 | 105.10266 | 0 |
+| 20 | SW3:12 | 167.64000 | 105.10266 | 0 |
+| 21 | SW3:11 | 148.59000 | 101.92766 | 0 |
+| 22 | SW3:10 | 129.54000 | 100.33000 | 0 |
+| 23 | SW3:9 | 110.49000 | 101.92766 | 0 |
+| 24 | SW3:8 | 91.44000 | 103.19766 | 0 |
+| 25 | SW4:7 | 72.39000 | 88.91016 | 90 |
+| 26 | SW4:8 | 91.44000 | 84.14766 | 0 |
+| 27 | SW4:9 | 110.49000 | 82.87766 | 0 |
+| 28 | SW4:10 | 129.54000 | 81.28000 | 0 |
+| 29 | SW4:11 | 148.59000 | 82.87766 | 0 |
+| 30 | SW4:12 | 167.64000 | 86.05266 | 0 |
+| 31 | SW4:13 | 191.45250 | 86.05266 | 0 |
+| 32 | SW5:13 | 191.45250 | 67.00520 | 0 |
+| 33 | SW5:12 | 167.64000 | 67.00520 | 0 |
+| 34 | SW5:11 | 148.59000 | 63.82766 | 0 |
+| 35 | SW5:10 | 129.54000 | 62.23000 | 0 |
+| 36 | SW5:9 | 110.49000 | 63.82766 | 0 |
+| 37 | SW5:8 | 91.44000 | 65.10020 | 0 |
+| 38 | SW5:7 | 72.39000 | 65.10020 | 0 |
 
 The left project uses the mirrored coordinates and the same index order. `color-mapping` in the ZMK example is green, red, blue. Zephyr's usual WS2812 pixel is GRB. The OPSCO PDF's channel order was not re-read this pass. Confirm GRB against the C5378720 PDF before the first light-up. Do not assume an RGBW channel.
 
@@ -481,6 +471,8 @@ Figures from the OPSCO table in `notes/parts.md`, at the stated test points:
 - static, outputs off: 0.6 mA typical at VDD = 4.5 V. No maximum was copied.
 - per color, VDD = 5.0 V, VDS = 1.0 V: 10 / 12 / 14.5 mA min / typical / max.
 
+The numbers below were worked for 84 of the 5050 SK6812. The boards now carry 76 SK6812MINI-E (38 per half), and the MINI-E current table was not read. The 10% cap is kept as is; 76 LEDs draw less than 84 at the same per-LED current.
+
 84 LEDs (42 per half):
 
 - static, both halves, typical: 84 × 0.6 = 50.4 mA
@@ -517,9 +509,9 @@ LCSC values are from `notes/parts.md` unless the source column says this pass re
 | D1 | ST USBLC6-2SC6, HOST D+/D− | C7519 | 1 | notes/parts.md, extended |
 | D2 | ST USBLC6-2SC6, LINK TX/RX | C7519 | 1 | same part |
 | D3, D4 | MDD SS14, HOST VBUS and LINK sink | C2480 | 2 | notes/parts.md, basic. Page Vf 550 mV at 1 A |
-| D5–D46 | 1N4148W, matrix | C81598 | 42 | notes/parts.md, basic |
-| DS1–DS42 | OPSCO SK6812 | C5378720 | 42 | notes/parts.md, extended, Standard Only, MSL 5 |
-| SW sockets | HanElectricity CPG151101S11-16 | C41430893 | 42 | notes/parts.md. Not a verified Kailh MPN |
+| D5–D42 | 1N4148W, matrix | C81598 | 38 | notes/parts.md, basic |
+| DS1–DS38 | OPSCO SK6812MINI-E, reverse mount | C5149201 | 38 | LCSC and JLCPCB pages, extended |
+| SW sockets | HanElectricity CPG151101S11-16 | C41430893 | 38 | notes/parts.md. Not a verified Kailh MPN |
 | MX switches | not assembled |  | 0 | |
 | SW_BOOT, SW_RST | XKB TS-1187A-B-A-B | C318884 | 2 | notes/parts.md, basic |
 | Y1 | Abracon ABM8-272-T3, 12 MHz | C20625731 | 1 | notes/parts.md, extended |
@@ -531,9 +523,9 @@ LCSC values are from `notes/parts.md` unless the source column says this pass re
 | R_10K | Uni-Royal 0402WGF1002TCE | C25744 | 4 fitted, 1 DNF | fitted: two switch ON pulldowns, LINK_RP_EN pulldown, board-id. DNF: QSPI_SS pull-up |
 | R_27 | Uni-Royal 0402WGF270JTCE | C25100 | 4 | HOST D+, HOST D−, LINK TX, LINK RX. Extended |
 | R_RP | 36 kΩ ±20%, Rp to +3V3, one per LINK CC |  | 2 | value from the Type-C table. LCSC not opened |
-| Q_RD | depletion P-channel JFET, Rd disconnect, one per LINK CC |  | 2 | unverified |
-| Q_RP | N-channel MOSFET, Rp connect, one per LINK CC |  | 2 | unverified |
-| Q_GATE | small-signal MOSFET, forces LINK source ON low when HOST VBUS is absent |  | 1 | unverified |
+| Q1, Q3 | onsemi MMBFJ177LT1G, Rd disconnect, one per LINK CC | C106763 | 2 | LCSC page |
+| Q2, Q4 | 2N7002, Rp connect, one per LINK CC | C8545 | 2 | JLCPCB page, basic |
+| Q5, Q6 | 2N7002, hold LINK source ON low unless HOST VBUS is present | C8545 | 2 | same part |
 | R_DIV | CC and VBUS dividers, values per section 5 |  |  | unverified |
 
 No level shifter is in this list. See section 11 and section 17.
@@ -544,8 +536,8 @@ Footprints that are in the KiCad 10.0.7 image and are the ones to prefer, after 
 
 Right project, KiCad Y down, copies `notes/geometry.json` with residual 0:
 
-- 38 classic switch centers and rotations, plus the 4 SX centers and rotations
-- `Edge.Cuts`, 25 straight segments, width 0.381 mm, bounding box x 23.08098–205.9178 mm, y 30.48–189.35192 mm
+- 38 classic switch centers and rotations
+- `Edge.Cuts`, the 25 legacy segments minus the 4.5 mm × 1.27 mm TRRS notch at x 84.21–88.71 mm, which is filled so the LINK receptacle has board under its mouth, bounding box x 23.08098–205.9178 mm, y 30.48–189.35192 mm
 - eight mounting holes, drill 6.3754 mm, non-plated, the `H99` coordinates in the JSON
 - stabilizer S1 origin at SW0:11, (64.03848, 161.11728) mm, rotation 115°, footprint name `STAB_PCB940`, value `STAB200`
 - stabilizer S2 origin at SW0:10, (81.30286, 153.06548) mm, rotation 295°
@@ -577,16 +569,15 @@ All of these are required before the boards are called done. This document does 
 9. LINK silkscreen says `LINK` and `NOT A PC PORT`. TX and RX are crossed as in section 8. Source switch cannot turn on when the other side is a source, and cannot turn on when HOST VBUS is absent.
 10. No CC or VBUS net touches a GPIO without a divider that stays inside 0 V to 3.3 V, including both HOST plugs in PCs.
 11. USB D+/D− width and spacing are the JLCPCB calculator result for JLC04161H-7628 at 90 Ω, written down next to the fab note. They are not 0.8 mm / 0.15 mm.
-12. LED chain order matches section 11, `chain-length` 42, brightness cap at or below the section 14 number.
+12. LED chain order matches section 11, `chain-length` 38, brightness cap at or below the section 14 number.
 13. One script generated both projects, and a diff of the non-mirror, non-strap, non-UART-swap nets is empty.
 
 ### Blockers the layout does not get to ignore
 
 - 90 Ω geometry is the calculator row in section 13 (W1 0.290661 mm, gap 0.203200 mm). Er1 in that solve is the picture default 4.3; the stackup prepreg is 4.4 and the same widths report 89.5253 Ω.
 - SK6812 VIH minimum 3.25 V at VDD = 5.0 V versus RP2040 VOH minimum 2.62 V at IOVDD = 3.3 V. No level shifter is fitted. Direct drive is not guaranteed.
-- The KiCad OPSCO SK6812 footprint's description points at SK6812-B (C5380881), which was rejected. Pad match to C5378720 is unverified. The JLCPCB body size on that part is 5.4 × 5 mm.
 - Hotswap LCSC C41430893 is not a Kailh manufacturer page, and KiCad 10.0.7 has no Kailh or CPG1511 footprint. The socket land pattern is unverified.
-- Rp 36 kΩ, the depletion JFET, the Rp MOSFET, the HOST-VBUS gate, and the sense-divider resistors have no LCSC number.
+- Rp 36 kΩ and the 100 kΩ / 200 kΩ sense-divider resistors have no LCSC number.
 - Source-side CC windows are from a Release 1.1 extract, not re-checked against Release 2.4.
 - ZMK role cannot follow HOST VBUS. The product sentence "the half that sees VBUS is central" is met by flashing the central image into that half, not by a runtime detect.
 

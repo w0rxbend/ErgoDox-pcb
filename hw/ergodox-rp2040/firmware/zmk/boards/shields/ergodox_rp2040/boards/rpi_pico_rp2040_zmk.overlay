@@ -17,45 +17,41 @@
  *  3 SW0:12 ROW0 COL1
  *  4 SW0:8  ROW0 COL5
  *  5 SW0:11 ROW0 COL11
- *  6 SX0:11 ROW0 COL11
- *  7 SW0:10 ROW0 COL10
- *  8 SX0:10 ROW0 COL10
- *  9 SW1:13 ROW1 COL0
- * 10 SW1:12 ROW1 COL1
- * 11 SW1:11 ROW1 COL11
- * 12 SW1:10 ROW1 COL10
- * 13 SW1:9  ROW1 COL4
- * 14 SX1:8  ROW1 COL5
- * 15 SX1:7  ROW1 COL6
- * 16 SW2:7  ROW2 COL6
- * 17 SW2:8  ROW2 COL5
- * 18 SW2:9  ROW2 COL4
- * 19 SW2:10 ROW2 COL10
- * 20 SW2:11 ROW2 COL11
- * 21 SW2:12 ROW2 COL1
- * 22 SW2:13 ROW2 COL0
- * 23 SW3:13 ROW3 COL0
- * 24 SW3:12 ROW3 COL1
- * 25 SW3:11 ROW3 COL11
- * 26 SW3:10 ROW3 COL10
- * 27 SW3:9  ROW3 COL4
- * 28 SW3:8  ROW3 COL5
- * 29 SW4:7  ROW4 COL6
- * 30 SW4:8  ROW4 COL5
- * 31 SW4:9  ROW4 COL4
- * 32 SW4:10 ROW4 COL10
- * 33 SW4:11 ROW4 COL11
- * 34 SW4:12 ROW4 COL1
- * 35 SW4:13 ROW4 COL0
- * 36 SW5:13 ROW5 COL0
- * 37 SW5:12 ROW5 COL1
- * 38 SW5:11 ROW5 COL11
- * 39 SW5:10 ROW5 COL10
- * 40 SW5:9  ROW5 COL4
- * 41 SW5:8  ROW5 COL5
- * 42 SW5:7  ROW5 COL6
+ *  6 SW0:10 ROW0 COL10
+ *  7 SW1:13 ROW1 COL0
+ *  8 SW1:12 ROW1 COL1
+ *  9 SW1:11 ROW1 COL11
+ * 10 SW1:10 ROW1 COL10
+ * 11 SW1:9  ROW1 COL4
+ * 12 SW2:7  ROW2 COL6
+ * 13 SW2:8  ROW2 COL5
+ * 14 SW2:9  ROW2 COL4
+ * 15 SW2:10 ROW2 COL10
+ * 16 SW2:11 ROW2 COL11
+ * 17 SW2:12 ROW2 COL1
+ * 18 SW2:13 ROW2 COL0
+ * 19 SW3:13 ROW3 COL0
+ * 20 SW3:12 ROW3 COL1
+ * 21 SW3:11 ROW3 COL11
+ * 22 SW3:10 ROW3 COL10
+ * 23 SW3:9  ROW3 COL4
+ * 24 SW3:8  ROW3 COL5
+ * 25 SW4:7  ROW4 COL6
+ * 26 SW4:8  ROW4 COL5
+ * 27 SW4:9  ROW4 COL4
+ * 28 SW4:10 ROW4 COL10
+ * 29 SW4:11 ROW4 COL11
+ * 30 SW4:12 ROW4 COL1
+ * 31 SW4:13 ROW4 COL0
+ * 32 SW5:13 ROW5 COL0
+ * 33 SW5:12 ROW5 COL1
+ * 34 SW5:11 ROW5 COL11
+ * 35 SW5:10 ROW5 COL10
+ * 36 SW5:9  ROW5 COL4
+ * 37 SW5:8  ROW5 COL5
+ * 38 SW5:7  ROW5 COL6
  *
- * Color order is the ZMK/Zephyr WS2812 example (GRB). The OPSCO SK6812 channel
+ * Color order is the ZMK/Zephyr WS2812 example (GRB). The OPSCO SK6812MINI-E channel
  * order was not read from its datasheet. Confirm before the first light-up.
  * Frame bytes and the 4 MHz clock are copied from that example, not retuned.
  */
@@ -137,7 +133,7 @@
         led_strip: ws2812@0 {
             compatible = "worldsemi,ws2812-spi";
             reg = <0>;
-            chain-length = <42>;
+            chain-length = <38>;
             spi-max-frequency = <4000000>;
             spi-one-frame = <0x70>;
             spi-zero-frame = <0x40>;
