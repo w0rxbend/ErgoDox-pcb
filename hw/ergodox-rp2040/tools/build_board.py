@@ -1452,7 +1452,7 @@ def write_project(side: str, sch_name: str, root_uuid: str):
     ]
     data["net_settings"]["netclass_patterns"] = [
         {"netclass": "Power", "pattern": pat}
-        for pat in ("+5V", "+3V3", "+1V1", "LED_5V", "HOST_VBUS", "LINK_VBUS")
+        for pat in ("+5V", "LED_5V", "HOST_VBUS", "LINK_VBUS")
     ] + [{"netclass": "USB", "pattern": "USB_D*"}]
     data["net_settings"]["netclass_assignments"] = None
     rules = data["board"]["design_settings"]["rules"]

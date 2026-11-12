@@ -565,14 +565,6 @@
       },
       {
         "netclass": "Power",
-        "pattern": "+3V3"
-      },
-      {
-        "netclass": "Power",
-        "pattern": "+1V1"
-      },
-      {
-        "netclass": "Power",
         "pattern": "LED_5V"
       },
       {
@@ -716,7 +708,7 @@
   },
   "sheets": [
     [
-      "e65f1220-d89e-4a0f-b108-be0e5d54288e",
+      "7fd7ae78-ea9f-41d9-97a7-1a84e453794a",
       "ergodox-rp2040-left"
     ]
   ],

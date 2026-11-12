@@ -64,15 +64,19 @@ Y_SPLIT = 51.6
 DIODE_AT = (-5.2, 1.85)
 LED_AT = (0.0, 5.08)
 LED_VIA_OUT = 1.4  # pad centre to plane via, along the LED long axis
+ROW_STUB_END = (5.842, -7.4)  # switch-local end of the row stub, above socket pad 2
+PLANE_NETS = {"GND", "+3V3", "LED_5V"}
+U1_VIA_RING = 2.35  # plane vias under U1 sit this far from its centre
 U1_MOAT = 7.0  # half-width kept free of late parts around U1, for pin escape
 # Cells turned 180 degrees so a socket pad clears a mounting hole. The plate
 # cutout is square, so the switch goes in turned as well.
 TURNED = {"right": {"SW0:12"}, "left": set()}
-# The reverse-mount LED footprint puts its pads 0.25 mm from its own cutout.
+# The reverse-mount LED footprint puts its pads 0.25 mm from its own cutout, and a
+# track entering such a pad ends up 0.18 mm from it. Everywhere else the limit is 0.3 mm.
 DRU = """(version 1)
 (rule "led_cutout"
   (condition "A.Reference == 'DS*'")
-  (constraint edge_clearance (min 0.2mm))
+  (constraint edge_clearance (min 0.18mm))
 )
 """
 
@@ -246,6 +250,104 @@ def led_power_vias(board, led, rot):
             item.SetLocked(True)  # locked copper is exported as fixed, so the router keeps it
 
 
+def fixed_track(board, net, a, b, width):
+    track = add_track(board, net, pcbnew.B_Cu, a, b, width)
+    if track:
+        track.SetLocked(True)
+
+
+def cell_tracks(board, socket, diode, cx, cy, rot):
+    """Fixed copper inside a key cell. The router cannot reach a rotated socket pad."""
+    pads = {p.GetNumber(): p for p in socket.Pads() if p.GetNumber()}
+    at = lambda pad: (mm(pad.GetPosition().x), mm(pad.GetPosition().y))
+    anode = next(p for p in diode.Pads() if p.GetNumber() == "2")
+    fixed_track(board, pads["1"].GetNet(), at(pads["1"]), at(anode), 0.25)
+    # Row pad: a stub to open board above the socket, for the router to pick up.
+    fixed_track(board, pads["2"].GetNet(), at(pads["2"]), world(cx, cy, rot, *ROW_STUB_END), 0.25)
+
+
+def pad_box(pad, grow=0.0):
+    bb = pad.GetBoundingBox()
+    return (mm(bb.GetLeft()) - grow, mm(bb.GetTop()) - grow, mm(bb.GetRight()) + grow, mm(bb.GetBottom()) + grow)
+
+
+def plane_vias(board):
+    """Give every SMD pad on a plane net a via. The router does not connect planes."""
+    pads = [pad for fp in board.GetFootprints() for pad in fp.Pads()]
+    vias = [(mm(t.GetPosition().x), mm(t.GetPosition().y), t.GetNetname())
+            for t in board.GetTracks() if t.GetClass() == "PCB_VIA"]
+    u1 = board.FindFootprintByReference("U1").GetPosition()
+    u1x, u1y = mm(u1.x), mm(u1.y)
+
+    def clear(x, y, half, net, own, copper_gap=0.17):
+        me = (x - half, y - half, x + half, y + half)
+        for pad in pads:
+            if pad is own:
+                gap = 0.05
+            elif pad.GetNetname() == net and not pad.GetDrillSizeX():
+                continue
+            else:
+                gap = 0.25 if pad.GetDrillSizeX() else copper_gap
+            if hit(me, pad_box(pad), gap):
+                return False
+        return True
+
+    def stub_clear(a, b, net):
+        steps = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) / 0.1))
+        # 0.14: a stub leaving a 0.4 mm pitch pin sits exactly 0.15 mm from its neighbours.
+        return all(clear(a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps, 0.1, net, None, 0.14)
+                   for i in range(steps + 1))
+
+    def candidates(pad, px, py):
+        fp = pad.GetParentFootprint()
+        if fp.GetReference() == "U1":  # under the package, between the pin row and the centre pad
+            dx, dy = px - u1x, py - u1y
+            for slide in (0.0, 0.1, 0.15, 0.2):  # corner pins slide toward the middle of their row
+                if abs(dx) > abs(dy):
+                    yield u1x + math.copysign(U1_VIA_RING, dx), py - math.copysign(slide, dy)
+                else:
+                    yield px - math.copysign(slide, dx), u1y + math.copysign(U1_VIA_RING, dy)
+            return
+        cx, cy = mm(fp.GetPosition().x), mm(fp.GetPosition().y)
+        away = math.atan2(py - cy, px - cx)
+        for dist in (0.7, 0.9, 1.1, 1.4, 1.8, 2.3, 3.0):
+            for turn in (0, 45, -45, 90, -90, 135, -135, 180):
+                angle = round(math.degrees(away) / 45) * 45 + turn
+                yield px + dist * math.cos(math.radians(angle)), py + dist * math.sin(math.radians(angle))
+
+    missed = []
+    for pad in pads:
+        net = pad.GetNetname()
+        ref = pad.GetParentFootprint().GetReference()
+        centre_pad = ref == "U1" and pad.GetNumber() == "57"  # has its own thermal vias
+        if net not in PLANE_NETS or pad.GetDrillSizeX() or ref.startswith("DS") or centre_pad:
+            continue
+        px, py = mm(pad.GetPosition().x), mm(pad.GetPosition().y)
+        spot = None
+        for vx, vy, vnet in vias:  # share a via that is already beside the pad
+            if vnet == net and math.hypot(vx - px, vy - py) < 1.3 and stub_clear((px, py), (vx, vy), net):
+                spot = (vx, vy, False)
+                break
+        if spot is None:
+            for vx, vy in candidates(pad, px, py):
+                near = [math.hypot(vx - ox, vy - oy) for ox, oy, _ in vias]
+                if all(d >= 0.9 for d in near) and clear(vx, vy, 0.3, net, pad) and stub_clear((px, py), (vx, vy), net):
+                    spot = (vx, vy, True)
+                    break
+        if spot is None:
+            missed.append(f"{ref}.{pad.GetNumber()}")
+            continue
+        layer = pcbnew.B_Cu if pad.IsOnLayer(pcbnew.B_Cu) else pcbnew.F_Cu
+        track = add_track(board, pad.GetNet(), layer, (px, py), spot[:2], 0.2)
+        if track:
+            track.SetLocked(True)
+        if spot[2]:
+            add_via(board, pad.GetNet(), spot[0], spot[1]).SetLocked(True)
+            vias.append((spot[0], spot[1], net))
+    if missed:
+        print(f"no plane via for {missed}", flush=True)
+
+
 def build_pcb(sheet, side, project):
     geo = load_geo()
     if side == "right":
@@ -293,6 +395,7 @@ def build_pcb(sheet, side, project):
         placer.fixed(dref, *world(cx, cy, rot, *DIODE_AT), rot, True, keep=cell)
         placer.fixed(refs["DS"], *world(cx, cy, rot, *LED_AT), rot, True, keep=cell)
         led_power_vias(board, placer.fps[refs["DS"]], rot)
+        cell_tracks(board, placer.fps[refs["SW"]], placer.fps[dref], cx, cy, rot)
 
     for ref, (x, y, rot, back) in ANCHORS.items():
         placer.fixed(ref, *xform(x, y, side), mirror * rot, back)
@@ -312,6 +415,7 @@ def build_pcb(sheet, side, project):
     ux, uy = mm(placer.fps["U1"].GetPosition().x), mm(placer.fps["U1"].GetPosition().y)
     placer.occ[True].append((ux - U1_MOAT, uy - U1_MOAT, ux + U1_MOAT, uy + U1_MOAT))
     place_all([r for r in placer.parts if r not in placer.fps])
+    plane_vias(board)
 
     # Inner layers: L2 solid GND, L3 +3V3 under the controller and LED_5V under the keys.
     xs = [xform(*a, side)[0] for a, _ in outline]

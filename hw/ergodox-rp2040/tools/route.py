@@ -16,6 +16,7 @@ import pcbnew
 ROOT = Path(__file__).resolve().parents[1]
 # The router gets a little extra clearance so its rounding never lands under the DRC limit.
 ROUTER_EXTRA_MM = 0.03
+MIN_TRACK = pcbnew.FromMM(0.15)
 
 
 def led_cutout_keepout(board, led):
@@ -64,6 +65,10 @@ def main(action, side, other):
     elif action == "import":
         if not pcbnew.ImportSpecctraSES(board, other):
             raise SystemExit("SES import failed")
+        # The router necks a few stubs down to 0.12 mm. The board minimum is 0.15 mm.
+        for track in board.GetTracks():
+            if track.GetClass() == "PCB_TRACK" and track.GetWidth() < MIN_TRACK:
+                track.SetWidth(MIN_TRACK)
         pcbnew.SaveBoard(str(pcb), board)
         print(f"{side}: {len(board.GetTracks())} tracks and vias", flush=True)
     else:

@@ -4,7 +4,7 @@
 #   tools/build.sh /path/to/freerouting-2.5.0.jar
 #
 # Needs Docker with kicad/kicad:10.0.7-full, and Java 21+ for Freerouting.
-# Routing takes about 15 minutes per half; the halves run in parallel.
+# Routing takes up to 30 minutes per half; the halves run in parallel.
 set -euo pipefail
 
 jar=${1:?usage: build.sh /path/to/freerouting.jar}
@@ -25,7 +25,10 @@ kicad python3 tools/build_board.py
 route() {
   local side=$1
   kicad python3 tools/route.py export "$side" "/route/$side.dsn"
-  java -jar "$jar" -de "$work/$side.dsn" -do "$work/$side.ses" -mp 25 \
+  # No fanout stage: it puts a via on every SMD pin and chokes the RP2040.
+  # place.py already ties the power pads to the planes.
+  java -jar "$jar" -de "$work/$side.dsn" -do "$work/$side.ses" \
+    --router.autorouter.max_passes=120 --router.fanout.enabled=false \
     --gui.enabled=false >"$work/$side-router.log" 2>&1
   kicad python3 tools/route.py import "$side" "/route/$side.ses"
 }

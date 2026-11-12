@@ -56,7 +56,7 @@ The script runs these steps for both halves:
 
 1. `build_board.py` writes the schematics and places every part.
 2. `route.py export` writes a Specctra file for the router.
-3. Freerouting routes the board. This takes about 15 minutes per half.
+3. Freerouting routes the board. This takes up to 30 minutes per half.
 4. `route.py import` reads the routes back.
 5. `kicad-cli pcb drc` fills the zones and writes the reports to `hw/ergodox-rp2040/reports`.
 
