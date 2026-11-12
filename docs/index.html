@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ErgoDox RP2040</title>
+<meta name="description" content="An open-hardware ErgoDox with an RP2040 in each half, ZMK firmware, USB-C on every port and per-key RGB. In development.">
+<meta name="color-scheme" content="dark light">
+<style>
+:root {
+  --black: #000;
+  --ink: #1d1d1f;
+  --paper: #f5f5f7;
+  --white: #fff;
+  --mute-on-dark: #a1a1a6;
+  --mute-on-light: #6e6e73;
+  --gold: #d4af6a;        /* ENIG pad gold */
+  --gold-on-light: #7a5a12;
+  --mask: #101012;        /* solder mask */
+  --key-off: #232326;
+  --line-on-dark: #2c2c2e;
+  --line-on-light: #d2d2d7;
+  --s1: .5rem; --s2: 1rem; --s3: 1.5rem; --s4: 2rem; --s5: 3rem; --s6: 5rem; --s7: 8rem;
+  --wide: 68rem;
+  --text: 40rem;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--black);
+  color: var(--paper);
+  font: 400 1.0625rem/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p, dl, dd, ol { margin: 0; }
+ol { padding: 0; list-style: none; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 4px; }
+
+.skip { position: absolute; left: -999rem; }
+.skip:focus { left: var(--s2); top: var(--s2); z-index: 20; background: var(--white); color: var(--ink); padding: var(--s1) var(--s2); }
+
+/* Navigation */
+.nav {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(0, 0, 0, .72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--line-on-dark);
+}
+.nav-in {
+  max-width: var(--wide); margin: 0 auto; padding: 0 var(--s3);
+  min-height: 3rem; display: flex; align-items: center; gap: var(--s3);
+  font-size: .8125rem;
+}
+.nav-name { font-weight: 600; text-decoration: none; margin-right: auto; font-size: .9375rem; }
+.nav a:not(.nav-name):not(.pill) { text-decoration: none; color: var(--mute-on-dark); padding: var(--s1) 0; }
+.nav a:not(.nav-name):not(.pill):hover { color: var(--white); }
+.pill {
+  display: inline-block; text-decoration: none; font-weight: 500;
+  background: var(--paper); color: var(--ink);
+  padding: .3rem .85rem; border-radius: 999px;
+}
+.pill:hover { background: var(--white); }
+@media (max-width: 40rem) { .nav-hide { display: none; } }
+
+/* Sections */
+.band { padding: clamp(var(--s6), 12vw, var(--s7)) var(--s3); }
+.band-light { background: var(--paper); color: var(--ink); }
+.band-light :focus-visible { outline-color: var(--gold-on-light); }
+.in { max-width: var(--wide); margin: 0 auto; }
+.center { text-align: center; }
+.center .lede { margin-left: auto; margin-right: auto; }
+h1 { font-size: clamp(3rem, 9vw, 6rem); line-height: 1.03; letter-spacing: -.035em; font-weight: 700; }
+h2 { font-size: clamp(2.25rem, 5.5vw, 3.75rem); line-height: 1.07; letter-spacing: -.03em; font-weight: 700; max-width: 18ch; }
+.center h2 { margin-left: auto; margin-right: auto; }
+h3 { font-size: 1.3125rem; line-height: 1.2; letter-spacing: -.01em; font-weight: 600; }
+.lede { font-size: clamp(1.1875rem, 2.2vw, 1.5rem); line-height: 1.38; max-width: var(--text); margin-top: var(--s3); color: var(--mute-on-dark); }
+.band-light .lede, .band-light .quiet { color: var(--mute-on-light); }
+.quiet { color: var(--mute-on-dark); }
+.note { font-size: .875rem; max-width: var(--text); margin-top: var(--s3); }
+
+/* Hero */
+.hero { padding-top: var(--s6); padding-bottom: var(--s5); }
+.status {
+  display: inline-block; margin-top: var(--s4);
+  font-size: .875rem; color: var(--gold);
+  border: 1px solid currentColor; border-radius: 999px; padding: .3rem .9rem;
+}
+.board { display: block; width: 100%; height: auto; margin-top: var(--s5); }
+/* Both drawings reuse one <symbol>. Selectors cannot reach into a <use> copy,
+   but custom properties inherit into it, so each drawing themes it with these. */
+.pcb { fill: var(--pcb, var(--mask)); stroke: var(--pcb-line, #3a3a3c); stroke-width: .5; transition: fill .3s; }
+.hole { fill: var(--hole, var(--black)); stroke: var(--hole-line, var(--gold)); stroke-width: .6; }
+.port { fill: #8e8e93; }
+.key { fill: var(--key, var(--c, var(--key-off))); transition: fill .3s; }
+.lit .key { animation: light .7s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i) * 32ms + 300ms); }
+@keyframes light {
+  0% { fill: var(--key, var(--key-off)); }
+  40% { fill: var(--key, #fff); }
+  100% { fill: var(--key, var(--c)); }
+}
+
+/* Role switch */
+.split { display: grid; gap: var(--s5); align-items: center; margin-top: var(--s5); }
+@media (min-width: 56rem) { .split { grid-template-columns: 1fr 1fr; gap: var(--s6); } }
+.seg { border: 0; padding: 0; margin: var(--s4) 0 0; }
+.seg legend { padding: 0; font-size: .875rem; margin-bottom: var(--s1); }
+.seg-row { display: inline-flex; background: #e3e3e8; border-radius: 999px; padding: 3px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { padding: .5rem 1.4rem; border-radius: 999px; cursor: pointer; font-weight: 500; font-size: .9375rem; }
+.seg input:checked + label { background: var(--white); box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
+.seg input:focus-visible + label { outline: 3px solid var(--gold-on-light); outline-offset: 2px; }
+.roles { margin-top: var(--s3); display: grid; gap: var(--s1); }
+.roles dt { font-weight: 600; }
+.roles div { display: flex; gap: var(--s2); border-top: 1px solid var(--line-on-light); padding-top: var(--s1); }
+.roles dt { flex: none; width: 4.5rem; }
+.demo { --pcb: #e3e3e8; --pcb-line: #c7c7cc; --key: #c7c7cc; --hole: var(--paper); --hole-line: #c7c7cc; }
+.demo .central { --pcb: var(--ink); --pcb-line: var(--ink); --key: var(--gold); --hole: var(--ink); --hole-line: var(--gold); }
+.demo .cable { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; }
+.demo .host { fill: none; stroke: var(--gold-on-light); stroke-width: 1.6; stroke-linecap: round; transition: transform .3s; }
+.demo text { font: 600 8px var(--font); fill: var(--ink); stroke: none; text-anchor: middle; }
+
+/* Feature rows */
+.rows { display: grid; gap: var(--s5) var(--s6); margin-top: var(--s6); }
+@media (min-width: 48rem) { .rows { grid-template-columns: repeat(2, 1fr); } }
+.rows p { margin-top: var(--s1); max-width: 34rem; }
+.rows > div { border-top: 1px solid var(--line-on-dark); padding-top: var(--s3); }
+
+/* Specs */
+.specs { margin-top: var(--s5); border-top: 1px solid var(--line-on-light); }
+.specs div { display: grid; gap: var(--s1) var(--s4); padding: var(--s3) 0; border-bottom: 1px solid var(--line-on-light); }
+@media (min-width: 40rem) { .specs div { grid-template-columns: 14rem 1fr; } }
+.specs dt { font-weight: 600; }
+.specs dd { font-variant-numeric: tabular-nums; }
+
+/* Progress */
+.steps { margin-top: var(--s5); display: grid; gap: 0; max-width: 44rem; }
+.steps li { display: grid; grid-template-columns: 7.5rem 1fr; gap: var(--s3); padding: var(--s3) 0; border-top: 1px solid var(--line-on-dark); }
+.steps .state { font-size: .875rem; color: var(--mute-on-dark); padding-top: .15rem; }
+.steps .done .state { color: var(--gold); }
+.steps .now .state { color: var(--white); font-weight: 600; }
+.steps p { margin-top: .25rem; }
+.cta { margin-top: var(--s5); display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.cta .pill { padding: .7rem 1.4rem; font-size: 1.0625rem; }
+.link { color: var(--gold); text-underline-offset: .2em; }
+
+footer { border-top: 1px solid var(--line-on-dark); padding: var(--s4) var(--s3); font-size: .8125rem; color: var(--mute-on-dark); }
+footer p { max-width: var(--wide); margin: 0 auto; }
+footer p + p { margin-top: var(--s1); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .lit .key { animation: none; }
+  .pcb, .key, .demo .host { transition: none; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <nav class="nav-in" aria-label="Page">
+    <a class="nav-name" href="#top">ErgoDox RP2040</a>
+    <a class="nav-hide" href="#roles">Either half leads</a>
+    <a class="nav-hide" href="#design">Design</a>
+    <a class="nav-hide" href="#specs">Tech specs</a>
+    <a class="nav-hide" href="#progress">Progress</a>
+    <a class="pill" href="https://github.com/w0rxbend/ErgoDox-pcb">View on GitHub</a>
+  </nav>
+</header>
+
+<main id="main">
+  <section class="band hero center" id="top">
+    <div class="in">
+      <h1>ErgoDox, rewired.</h1>
+      <p class="lede">The split keyboard you know, rebuilt around an RP2040 in each half. ZMK firmware. USB-C on every port. A light under every key.</p>
+      <p class="status">In development. The boards have not been fabricated yet.</p>
+
+      <svg class="board" id="hero-board" viewBox="-198 26 406 168" role="img" aria-labelledby="hero-title">
+        <title id="hero-title">Top view of the left and right ErgoDox RP2040 boards, 38 keys each</title>
+        <defs>
+          <symbol id="half" viewBox="20 26 190 168" overflow="visible">
+            <polygon class="pcb" points="127.15,152.91 196.39,152.91 205.92,143.38 205.92,35.43 202.74,32.26 143.41,32.26 143.41,30.48 131.90,30.48 131.90,32.26 95.05,32.26 95.05,30.48 77.88,30.48 77.88,32.26 65.81,32.26 62.61,35.43 62.61,121.67 57.71,121.67 24.62,137.10 23.08,141.32 44.76,187.82 48.98,189.35"/>
+            <rect class="port" x="133.2" y="29.4" width="8.9" height="6.6" rx="1.2"/>
+            <rect class="port" x="82" y="29.4" width="8.9" height="6.6" rx="1.2"/>
+            <g id="holes"></g>
+            <g id="keys"></g>
+          </symbol>
+        </defs>
+        <use href="#half" x="20" y="26" width="190" height="168"/>
+        <use href="#half" x="20" y="26" width="190" height="168" transform="scale(-1 1) translate(-10 0)"/>
+      </svg>
+    </div>
+  </section>
+
+  <section class="band band-light" id="roles">
+    <div class="in">
+      <h2>Either half can lead.</h2>
+      <p class="lede">Both boards carry the same controller, the same ports and the same circuit. Plug the computer into the side you prefer. That half becomes the master and powers the other one over the link cable.</p>
+
+      <div class="split">
+        <div>
+          <fieldset class="seg">
+            <legend>Computer plugged into</legend>
+            <div class="seg-row">
+              <input type="radio" name="host" id="host-left" value="left" checked><label for="host-left">Left half</label>
+              <input type="radio" name="host" id="host-right" value="right"><label for="host-right">Right half</label>
+            </div>
+          </fieldset>
+          <dl class="roles" aria-live="polite">
+            <div><dt>Left</dt><dd id="role-left">Central. Talks to the computer and powers the link.</dd></div>
+            <div><dt>Right</dt><dd id="role-right">Peripheral. Sends its keys over the link.</dd></div>
+          </dl>
+          <p class="note quiet">ZMK fixes the role when the firmware is built, so each half is flashed with a central or a peripheral image. Swap sides by reflashing both halves over USB. Nothing is soldered and no jumper moves.</p>
+        </div>
+
+        <svg class="board demo" id="demo" viewBox="-198 -8 406 202" role="img" aria-labelledby="demo-title">
+          <title id="demo-title">The half connected to the computer is highlighted as the central half</title>
+          <g id="demo-left" class="central"><use href="#half" x="20" y="26" width="190" height="168" transform="scale(-1 1) translate(-10 0)"/></g>
+          <g id="demo-right"><use href="#half" x="20" y="26" width="190" height="168"/></g>
+          <path class="cable" d="M-76.5 29 C-76.5 12, 86.5 12, 86.5 29"/>
+          <g class="host" id="demo-host">
+            <path d="M-127.7 29 V8"/>
+            <text x="-127.7" y="3">Computer</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="design">
+    <div class="in">
+      <h2>Two cables. Both USB-C.</h2>
+      <p class="lede">One ordinary USB-C cable goes to the computer. A second one joins the halves. No TRRS jack, no mini-USB, no adapter board.</p>
+
+      <div class="rows">
+        <div>
+          <h3>A link that cannot be mistaken for a USB port</h3>
+          <p class="quiet">The link carries a serial connection between the two controllers, not USB. It only supplies power after it detects the other half, and the board is marked so nobody plugs a computer into it.</p>
+        </div>
+        <div>
+          <h3>A controller in each half</h3>
+          <p class="quiet">Each board has its own RP2040, 16 MB of flash and a 12 MHz crystal. The I/O expander and the Teensy are gone. A button on each half starts the USB bootloader.</p>
+        </div>
+        <div>
+          <h3>Light under every key</h3>
+          <p class="quiet">Each switch has its own RGB LED, mounted on the back and shining up through the board. Brightness is capped in firmware so both halves stay inside what one USB port may supply.</p>
+        </div>
+        <div>
+          <h3>Switches you can change</h3>
+          <p class="quiet">Every key sits in a hotswap socket. Pull a switch out and push another one in. The fab assembles the sockets, diodes and LEDs, so there is no SMD soldering at home.</p>
+        </div>
+        <div>
+          <h3>The case you already own</h3>
+          <p class="quiet">Switch centers, mounting holes and stabilizers stay on the original ErgoDox coordinates. All 38 switch positions per half match the Litster acrylic plate exactly.</p>
+        </div>
+        <div>
+          <h3>Open from schematic to firmware</h3>
+          <p class="quiet">The KiCad projects are generated by scripts in the repository, so every placement rule is written down and repeatable. The ZMK shield lives beside them.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-light" id="specs">
+    <div class="in">
+      <h2>Tech specs</h2>
+      <dl class="specs">
+        <div><dt>Keys</dt><dd>76 in total, 38 per half. MX hotswap sockets. Two 2u thumb keys per half with PCB-mount stabilizers.</dd></div>
+        <div><dt>Controller</dt><dd>Raspberry Pi RP2040 in each half, with 16 MB QSPI flash and a 12 MHz crystal.</dd></div>
+        <div><dt>Firmware</dt><dd>ZMK, wired split over UART. Four images: left or right, central or peripheral.</dd></div>
+        <div><dt>Computer port</dt><dd>USB-C, USB 2.0 full speed, with ESD protection.</dd></div>
+        <div><dt>Link port</dt><dd>USB-C receptacle carrying UART at 1 Mbaud and 5 V. Uses a standard USB 2.0 C-to-C cable.</dd></div>
+        <div><dt>Matrix</dt><dd>6 rows by 7 columns per half, one 1N4148W diode per key, wired straight to the RP2040.</dd></div>
+        <div><dt>Lighting</dt><dd>One SK6812MINI-E per key, reverse mounted, on a switched 5 V rail. Capped at 10% of full white.</dd></div>
+        <div><dt>Power</dt><dd>Bus powered, planned for 500 mA from one port for both halves. 3.3 V from an AP2112K regulator.</dd></div>
+        <div><dt>Board</dt><dd>4 layers, 1.6 mm. Sockets, diodes, LEDs and the controller on the back. Connectors and buttons on the front.</dd></div>
+        <div><dt>Case</dt><dd>Fits the Litster ErgoDox acrylic case, Standard plate. The USB-C openings have not been test fitted.</dd></div>
+        <div><dt>Design tools</dt><dd>KiCad 10 projects generated from Python. Parts chosen from the JLCPCB assembly library.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="band" id="progress">
+    <div class="in">
+      <h2>Where the project is.</h2>
+      <p class="lede">This is a design in progress, not a product you can order. Nothing has been manufactured or tested on real hardware.</p>
+
+      <ol class="steps">
+        <li class="done"><span class="state">Done</span><div><h3>Schematics</h3><p class="quiet">Both halves pass the electrical rule check with no errors.</p></div></li>
+        <li class="done"><span class="state">Done</span><div><h3>Placement</h3><p class="quiet">All parts placed on both boards with no design rule errors. Switch positions match the case plates.</p></div></li>
+        <li class="now"><span class="state">In progress</span><div><h3>Routing</h3><p class="quiet">Copper is being routed and checked. The boards are not ready to fabricate until this passes with zero errors.</p></div></li>
+        <li><span class="state">To do</span><div><h3>Fabrication files</h3><p class="quiet">Gerbers, bill of materials and placement files for assembly.</p></div></li>
+        <li><span class="state">To do</span><div><h3>First boards</h3><p class="quiet">Build a pair, flash ZMK, and test every key, both ports and the lighting.</p></div></li>
+      </ol>
+
+      <div class="cta">
+        <a class="pill" href="https://github.com/w0rxbend/ErgoDox-pcb">View on GitHub</a>
+        <a class="link" href="https://github.com/w0rxbend/ErgoDox-pcb/blob/master/hw/ergodox-rp2040/DESIGN.md">Read the design contract</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>ErgoDox RP2040 is a community hardware project based on the open ErgoDox PCB and the Litster acrylic case.</p>
+  <p>It is not affiliated with Raspberry Pi Ltd, ZMK, ZSA or Apple. Product names belong to their owners.</p>
+</footer>
+
+<script>
+// Key data from hw/ergodox-rp2040/notes/geometry.json, in LED chain order:
+// [x mm, y mm, rotation deg, width in key units]. Right-hand board, top view.
+const KEYS = [[34.7,143.27,25,1],[42.75,160.53,25,1],[50.8,177.8,25,1],[51.96,135.22,25,1],[64.04,161.12,115,2],[81.3,153.07,115,2],[186.69,143.2,0,1],[167.64,143.2,0,1],[148.59,140.03,0,1],[129.54,138.43,0,1],[110.49,140.03,0,1],[72.39,117.49,90,1.5],[91.44,122.25,0,1],[110.49,120.98,0,1],[129.54,119.38,0,1],[148.59,120.98,0,1],[167.64,124.15,0,1],[191.45,124.15,0,1.5],[191.45,105.1,0,1.5],[167.64,105.1,0,1],[148.59,101.93,0,1],[129.54,100.33,0,1],[110.49,101.93,0,1],[91.44,103.2,0,1],[72.39,88.91,90,1.5],[91.44,84.15,0,1],[110.49,82.88,0,1],[129.54,81.28,0,1],[148.59,82.88,0,1],[167.64,86.05,0,1],[191.45,86.05,0,1.5],[191.45,67.01,0,1.5],[167.64,67.01,0,1],[148.59,63.83,0,1],[129.54,62.23,0,1],[110.49,63.83,0,1],[91.44,65.1,0,1],[72.39,65.1,0,1]];
+const HOLES = [[53.9,165.8],[59.7,121.7],[67.4,37.1],[105.4,157.8],[118.2,37.1],[139,91.6],[201.1,37.1],[201.8,140.1]];
+const UNIT = 19.05, GAP = 1.6, SVG = "http://www.w3.org/2000/svg";
+
+function shape(tag, attrs) {
+  const el = document.createElementNS(SVG, tag);
+  for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
+  return el;
+}
+
+const keys = document.getElementById("keys");
+KEYS.forEach(([x, y, rot, units], i) => {
+  const w = units * UNIT - GAP, h = UNIT - GAP;
+  const key = shape("rect", {
+    class: "key", x: -w / 2, y: -h / 2, width: w, height: h, rx: 2.4,
+    // KiCad rotates counter-clockwise, SVG clockwise.
+    transform: `translate(${x} ${y}) rotate(${-rot})`,
+  });
+  key.style.setProperty("--i", i);
+  key.style.setProperty("--c", `hsl(${200 + (i / KEYS.length) * 140} 85% 62%)`);
+  keys.append(key);
+});
+const holes = document.getElementById("holes");
+HOLES.forEach(([cx, cy]) => holes.append(shape("circle", { class: "hole", cx, cy, r: 3.2 })));
+document.getElementById("hero-board").classList.add("lit");
+
+// Role switch: the half plugged into the computer is the ZMK central.
+const ROLE = {
+  central: "Central. Talks to the computer and powers the link.",
+  peripheral: "Peripheral. Sends its keys over the link.",
+};
+const HOST_SHIFT = { left: 0, right: 265.3 }; // mm between the two computer ports in the drawing
+function setHost(side) {
+  for (const half of ["left", "right"]) {
+    const central = half === side;
+    document.getElementById(`demo-${half}`).classList.toggle("central", central);
+    document.getElementById(`role-${half}`).textContent = central ? ROLE.central : ROLE.peripheral;
+  }
+  document.getElementById("demo-host").style.transform = `translateX(${HOST_SHIFT[side]}px)`;
+}
+document.querySelectorAll('input[name="host"]').forEach((radio) =>
+  radio.addEventListener("change", () => setHost(radio.value)));
+</script>
+</body>
+</html>
