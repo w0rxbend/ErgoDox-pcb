@@ -113,7 +113,7 @@ def walk(node, fn):
 
 
 def gpio_number(name: str):
-    match = re.fullmatch(r"GPIO(\d+)", name)
+    match = re.fullmatch(r"GPIO(\d+)(?:/ADC\d)?", name)  # 26-29 are named GPIOn/ADCm
     if not match:
         return None
     return int(match.group(1))

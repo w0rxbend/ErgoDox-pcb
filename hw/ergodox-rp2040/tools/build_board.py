@@ -34,7 +34,7 @@ LCSC = {
     "USBLC6-2SC6": "C7519",
     "SS14": "C2480",
     "1N4148W": "C81598",
-    "SK6812": "C5378720",
+    "SK6812MINI-E": "C5149201",
     "CPG151101S11-16": "C41430893",
     "TS-1187A-B-A-B": "C318884",
     "ABM8-272-T3": "C20625731",
@@ -45,6 +45,8 @@ LCSC = {
     "5.1k": "C25905",
     "10k": "C25744",
     "27": "C25100",
+    "2N7002": "C8545",
+    "MMBFJ177LT1G": "C106763",
 }
 
 # Legacy matrix. Cathode of each per-socket diode is the column.
@@ -53,45 +55,41 @@ KEYS = [
     ("SW0:7", "ROW0", "COL6", 1),
     ("SW0:8", "ROW0", "COL5", 4),
     ("SW0:9", "ROW0", "COL4", 2),
-    ("SW0:10", "ROW0", "COL10", 7),
+    ("SW0:10", "ROW0", "COL10", 6),
     ("SW0:11", "ROW0", "COL11", 5),
     ("SW0:12", "ROW0", "COL1", 3),
-    ("SW1:9", "ROW1", "COL4", 13),
-    ("SW1:10", "ROW1", "COL10", 12),
-    ("SW1:11", "ROW1", "COL11", 11),
-    ("SW1:12", "ROW1", "COL1", 10),
-    ("SW1:13", "ROW1", "COL0", 9),
-    ("SW2:7", "ROW2", "COL6", 16),
-    ("SW2:8", "ROW2", "COL5", 17),
-    ("SW2:9", "ROW2", "COL4", 18),
-    ("SW2:10", "ROW2", "COL10", 19),
-    ("SW2:11", "ROW2", "COL11", 20),
-    ("SW2:12", "ROW2", "COL1", 21),
-    ("SW2:13", "ROW2", "COL0", 22),
-    ("SW3:8", "ROW3", "COL5", 28),
-    ("SW3:9", "ROW3", "COL4", 27),
-    ("SW3:10", "ROW3", "COL10", 26),
-    ("SW3:11", "ROW3", "COL11", 25),
-    ("SW3:12", "ROW3", "COL1", 24),
-    ("SW3:13", "ROW3", "COL0", 23),
-    ("SW4:7", "ROW4", "COL6", 29),
-    ("SW4:8", "ROW4", "COL5", 30),
-    ("SW4:9", "ROW4", "COL4", 31),
-    ("SW4:10", "ROW4", "COL10", 32),
-    ("SW4:11", "ROW4", "COL11", 33),
-    ("SW4:12", "ROW4", "COL1", 34),
-    ("SW4:13", "ROW4", "COL0", 35),
-    ("SW5:7", "ROW5", "COL6", 42),
-    ("SW5:8", "ROW5", "COL5", 41),
-    ("SW5:9", "ROW5", "COL4", 40),
-    ("SW5:10", "ROW5", "COL10", 39),
-    ("SW5:11", "ROW5", "COL11", 38),
-    ("SW5:12", "ROW5", "COL1", 37),
-    ("SW5:13", "ROW5", "COL0", 36),
-    ("SX0:10", "ROW0", "COL10", 8),
-    ("SX0:11", "ROW0", "COL11", 6),
-    ("SX1:7", "ROW1", "COL6", 15),
-    ("SX1:8", "ROW1", "COL5", 14),
+    ("SW1:9", "ROW1", "COL4", 11),
+    ("SW1:10", "ROW1", "COL10", 10),
+    ("SW1:11", "ROW1", "COL11", 9),
+    ("SW1:12", "ROW1", "COL1", 8),
+    ("SW1:13", "ROW1", "COL0", 7),
+    ("SW2:7", "ROW2", "COL6", 12),
+    ("SW2:8", "ROW2", "COL5", 13),
+    ("SW2:9", "ROW2", "COL4", 14),
+    ("SW2:10", "ROW2", "COL10", 15),
+    ("SW2:11", "ROW2", "COL11", 16),
+    ("SW2:12", "ROW2", "COL1", 17),
+    ("SW2:13", "ROW2", "COL0", 18),
+    ("SW3:8", "ROW3", "COL5", 24),
+    ("SW3:9", "ROW3", "COL4", 23),
+    ("SW3:10", "ROW3", "COL10", 22),
+    ("SW3:11", "ROW3", "COL11", 21),
+    ("SW3:12", "ROW3", "COL1", 20),
+    ("SW3:13", "ROW3", "COL0", 19),
+    ("SW4:7", "ROW4", "COL6", 25),
+    ("SW4:8", "ROW4", "COL5", 26),
+    ("SW4:9", "ROW4", "COL4", 27),
+    ("SW4:10", "ROW4", "COL10", 28),
+    ("SW4:11", "ROW4", "COL11", 29),
+    ("SW4:12", "ROW4", "COL1", 30),
+    ("SW4:13", "ROW4", "COL0", 31),
+    ("SW5:7", "ROW5", "COL6", 38),
+    ("SW5:8", "ROW5", "COL5", 37),
+    ("SW5:9", "ROW5", "COL4", 36),
+    ("SW5:10", "ROW5", "COL10", 35),
+    ("SW5:11", "ROW5", "COL11", 34),
+    ("SW5:12", "ROW5", "COL1", 33),
+    ("SW5:13", "ROW5", "COL0", 32),
 ]
 
 ROWS = {
@@ -845,13 +843,13 @@ def build(side: str, lib: Lib) -> Sheet:
     sheet = Sheet(side, lib)
     sheet.use("Device.kicad_sym", "R", "Device")
     sheet.use("Device.kicad_sym", "C", "Device")
-    sheet.use("Device.kicad_sym", "Q_NMOS", "Device")
-    sheet.use("Device.kicad_sym", "Q_PJFET_GSD", "Device")
+    sheet.use("Transistor_FET.kicad_sym", "2N7002", "Transistor_FET")
+    sheet.use("Device.kicad_sym", "Q_PJFET_DSG", "Device")
     sheet.use("Device.kicad_sym", "Crystal_GND24", "Device")
     sheet.use("Switch.kicad_sym", "SW_Push", "Switch")
     sheet.use("Diode.kicad_sym", "1N4148W", "Diode")
     sheet.use("Diode.kicad_sym", "SS14", "Diode")
-    sheet.use("LED.kicad_sym", "SK6812", "LED")
+    sheet.use("LED.kicad_sym", "SK6812MINI", "LED")
     sheet.use("Connector.kicad_sym", "USB_C_Receptacle_USB2.0_16P", "Connector")
     sheet.use("MCU_RaspberryPi.kicad_sym", "RP2040", "MCU_RaspberryPi")
     sheet.use("Memory_Flash.kicad_sym", "W25Q128JVS", "Memory_Flash")
@@ -901,12 +899,6 @@ def build(side: str, lib: Lib) -> Sheet:
         "28": "COL10",
         "29": "COL11",
         "30": "BOARD_ID",
-        "31": "GPIO20",
-        "32": "GPIO21",
-        "34": "GPIO22",
-        "35": "GPIO23",
-        "36": "GPIO24",
-        "37": "GPIO25",
         "38": "HOST_VBUS_SENSE",
         "39": "CC1_SENSE",
         "40": "CC2_SENSE",
@@ -916,6 +908,9 @@ def build(side: str, lib: Lib) -> Sheet:
         sheet.assign(mcu, num, "label", net)
     sheet.assign(mcu, "20", "label", "XIN")
     sheet.assign(mcu, "21", "label", "XOUT")
+    # Unused GPIO20-25: no pad, no resistor. Firmware turns on the internal pulldown.
+    for num in ("31", "32", "34", "35", "36", "37"):
+        sheet.assign(mcu, num, "nc", None)
     sheet.assign(mcu, "24", "nc", None)  # SWCLK, test pad not fitted
     sheet.assign(mcu, "25", "nc", None)  # SWDIO
     sheet.assign(mcu, "26", "label", "RUN")
@@ -1097,13 +1092,14 @@ def build(side: str, lib: Lib) -> Sheet:
     def link_cc(idx, cc_net, sense_net, rd_ref, rp_ref, jfet_ref, nmos_ref, div_top, div_bot):
         r_part(sheet, rd_ref, "5.1k", labeled(cc_net), labeled(f"{cc_net}_RD"), note="LINK Rd")
         jfet = sheet.add_part(
-            "Device:Q_PJFET_GSD",
+            "Device:Q_PJFET_DSG",
             jfet_ref,
-            "PJFET-depletion-unverified",
+            "MMBFJ177LT1G",
             footprint="Package_TO_SOT_SMD:SOT-23",
             fields={
-                "MPN": "",
-                "Note": "Depletion P-channel JFET. On at Vgs=0, off at Vgs=+3.3 V. MPN and LCSC unverified. Official SOT-23 pad numbers follow this symbol's pin numbers.",
+                "LCSC": LCSC["MMBFJ177LT1G"],
+                "MPN": "MMBFJ177LT1G",
+                "Note": "Depletion P-channel JFET. On at Vgs=0, off at Vgs=+3.3 V. SOT-23 pad 1 D, 2 S, 3 G.",
             },
         )
         sheet.assign_name(jfet, "G", "label", "LINK_RP_EN")
@@ -1118,11 +1114,11 @@ def build(side: str, lib: Lib) -> Sheet:
             note="Rp to +3.3 V, Default USB, +/-20%. LCSC unverified.",
         )
         nmos = sheet.add_part(
-            "Device:Q_NMOS",
+            "Transistor_FET:2N7002",
             nmos_ref,
-            "NMOS-unverified",
+            "2N7002",
             footprint="Package_TO_SOT_SMD:SOT-23",
-            fields={"MPN": "", "Note": "N-channel MOSFET, on at Vgs=3.3 V. MPN and LCSC unverified. Official SOT-23 pad numbers follow this symbol's pin numbers."},
+            fields={"LCSC": LCSC["2N7002"], "MPN": "2N7002", "Note": "N-channel MOSFET, on at Vgs=3.3 V."},
         )
         sheet.assign_name(nmos, "G", "label", "LINK_RP_EN")
         sheet.assign_name(nmos, "D", "label", f"{cc_net}_RP")
@@ -1141,22 +1137,22 @@ def build(side: str, lib: Lib) -> Sheet:
     r_part(sheet, "R18", "1k", labeled("LINK_SRC_REQ"), labeled("LINK_SRC_ON"), note="GPIO series so the clamp MOSFET can win")
     r_part(sheet, "R15", "10k", labeled("LINK_SRC_ON"), powered("GND"), note="LINK source ON pulldown")
     q_gate = sheet.add_part(
-        "Device:Q_NMOS",
+        "Transistor_FET:2N7002",
         "Q5",
-        "NMOS-unverified",
+        "2N7002",
         footprint="Package_TO_SOT_SMD:SOT-23",
-        fields={"MPN": "", "Note": "Shorts LINK source ON to GND when its gate is high. MPN and LCSC unverified. Official SOT-23 pad numbers follow this symbol's pin numbers."},
+        fields={"LCSC": LCSC["2N7002"], "MPN": "2N7002", "Note": "Shorts LINK source ON to GND when its gate is high."},
     )
     sheet.assign_name(q_gate, "G", "label", "LINK_GATE")
     sheet.assign_name(q_gate, "D", "label", "LINK_SRC_ON")
     sheet.assign_name(q_gate, "S", "power", "GND")
     r_part(sheet, "R19", "10k", powered("+3V3"), labeled("LINK_GATE"), note="Default-on pull-up for the ON clamp. LCSC is the verified 10k.")
     q_host = sheet.add_part(
-        "Device:Q_NMOS",
+        "Transistor_FET:2N7002",
         "Q6",
-        "NMOS-unverified",
+        "2N7002",
         footprint="Package_TO_SOT_SMD:SOT-23",
-        fields={"MPN": "", "Note": "Pulls the ON-clamp gate down when HOST VBUS sense is high. MPN and LCSC unverified. Official SOT-23 pad numbers follow this symbol's pin numbers."},
+        fields={"LCSC": LCSC["2N7002"], "MPN": "2N7002", "Note": "Pulls the ON-clamp gate down when HOST VBUS sense is high."},
     )
     sheet.assign_name(q_host, "G", "label", "HOST_VBUS_SENSE")
     sheet.assign_name(q_host, "D", "label", "LINK_GATE")
@@ -1174,16 +1170,6 @@ def build(side: str, lib: Lib) -> Sheet:
         r_part(sheet, "R17", "10k", labeled("BOARD_ID"), powered("GND"), note="Left board id. GPIO19 reads low.")
     else:
         r_part(sheet, "R17", "10k", labeled("BOARD_ID"), powered("+3V3"), note="Right board id. GPIO19 reads high.")
-
-    for idx, num in enumerate(("20", "21", "22", "23", "24", "25"), start=28):
-        r_part(
-            sheet,
-            f"R{idx}",
-            "10k",
-            labeled(f"GPIO{num}"),
-            powered("GND"),
-            note="Unused GPIO pulldown. Firmware also pulldown. Not a matrix or UART pin.",
-        )
 
     # Crystal.
     y1 = sheet.add_part(
@@ -1258,8 +1244,8 @@ def build(side: str, lib: Lib) -> Sheet:
 
     # Matrix and LEDs.
     by_chain = sorted(KEYS, key=lambda row: row[3])
-    if [row[3] for row in by_chain] != list(range(1, 43)):
-        raise RuntimeError("chain index is not 1..42")
+    if [row[3] for row in by_chain] != list(range(1, len(KEYS) + 1)):
+        raise RuntimeError("chain index is not 1..N")
     for legacy, row, col, index in KEYS:
         ref = legacy.replace(":", "_")
         sw = sheet.add_part(
@@ -1274,8 +1260,9 @@ def build(side: str, lib: Lib) -> Sheet:
                 "Note": "Hotswap socket only. MX switch body is not assembled.",
             },
         )
-        sheet.assign(sw, "1", "label", row)
-        sheet.assign(sw, "2", "label", f"SWNODE_{legacy}")
+        # Socket pad 1 is the one beside the diode on the board.
+        sheet.assign(sw, "1", "label", f"SWNODE_{legacy}")
+        sheet.assign(sw, "2", "label", row)
         dref = f"D{4 + index}"
         diode = sheet.add_part(
             "Diode:1N4148W",
@@ -1290,16 +1277,16 @@ def build(side: str, lib: Lib) -> Sheet:
         din = "LED_DIN" if n == 0 else f"LED_{n}"
         dout = None if n == len(by_chain) - 1 else f"LED_{n + 1}"
         led = sheet.add_part(
-            "LED:SK6812",
+            "LED:SK6812MINI",
             f"DS{index}",
-            "SK6812",
-            footprint="LED_SMD:LED_SK6812_PLCC4_5.0x5.0mm_P3.2mm",
+            "SK6812MINI-E",
+            footprint="LED_SMD:LED_SK6812MINI-E_3.2x2.8mm_P1.5mm_ReverseMount",
             fields={
-                "LCSC": LCSC["SK6812"],
-                "MPN": "SK6812",
+                "LCSC": LCSC["SK6812MINI-E"],
+                "MPN": "SK6812MINI-E",
                 "Legacy": legacy,
                 "Chain": str(index),
-                "Note": "KiCad LED_SK6812 5.0x5.0 mm footprint. Selected body is 5.4x5 mm. Not redrawn.",
+                "Note": "Reverse mount on the back, shines up through the board cutout under the switch.",
             },
         )
         by_name = {p["name"]: p["number"] for p in led["pins"]}
@@ -1326,7 +1313,7 @@ def build(side: str, lib: Lib) -> Sheet:
         "LINK Rp is 36k to +3.3V, one per CC pin, only while LINK_RP_EN is high.",
         "CC divider 200k/100k keeps a 36k open pin at 2.95 V and 5.5 V at 1.83 V on the ADC.",
         "VBUS divider 100k/100k maps 5.5 V to 2.75 V. Divider LCSC codes are blank.",
-        "JFET, Rp MOSFET, and both gate MOSFETs have no verified MPN or LCSC.",
+        "36k, 100k and 200k resistors have no verified LCSC code.",
         "USB_DP and USB_DM are the HOST pair between the ESD device side and the 27 ohm resistors.",
         "USB D+/D- on the board is 0.290661 mm wide with 0.203200 mm edge gap (DESIGN.md section 13).",
         "No level shifter on the SK6812 data pin. Direct 3.3 V drive is not guaranteed.",
@@ -1437,31 +1424,40 @@ def write_project(side: str, sch_name: str, root_uuid: str):
         data["boards"] = []
     # One netclass. Demo patterns would force USB onto a 0.23 mm pair that is
     # not the JLC04161H-7628 result in DESIGN.md section 13.
-    data["net_settings"]["classes"] = [
-        {
+    def netclass(name, width, priority):
+        return {
             "bus_width": 12,
-            "clearance": 0.2,
-            "diff_pair_gap": 0.0,
-            "diff_pair_via_gap": 0.0,
-            "diff_pair_width": 0.0,
+            "clearance": 0.15,
+            "diff_pair_gap": 0.2032,
+            "diff_pair_via_gap": 0.25,
+            "diff_pair_width": 0.2907,
             "line_style": 0,
             "microvia_diameter": 0.3,
             "microvia_drill": 0.1,
-            "name": "Default",
+            "name": name,
             "pcb_color": "rgba(0, 0, 0, 0.000)",
-            "priority": 2147483647,
+            "priority": priority,
             "schematic_color": "rgba(0, 0, 0, 0.000)",
-            "track_width": 0.2,
+            "track_width": width,
             "via_diameter": 0.6,
             "via_drill": 0.3,
             "wire_width": 6,
         }
+
+    # USB width is the JLC04161H-7628 90 ohm result in DESIGN.md section 13.
+    data["net_settings"]["classes"] = [
+        netclass("Default", 0.2, 2147483647),
+        netclass("Power", 0.4, 0),
+        netclass("USB", 0.2907, 1),
     ]
-    data["net_settings"]["netclass_patterns"] = []
+    data["net_settings"]["netclass_patterns"] = [
+        {"netclass": "Power", "pattern": pat}
+        for pat in ("+5V", "+3V3", "+1V1", "LED_5V", "HOST_VBUS", "LINK_VBUS")
+    ] + [{"netclass": "USB", "pattern": "USB_D*"}]
     data["net_settings"]["netclass_assignments"] = None
     rules = data["board"]["design_settings"]["rules"]
-    rules["min_clearance"] = 0.2
-    rules["min_track_width"] = 0.16
+    rules["min_clearance"] = 0.15
+    rules["min_track_width"] = 0.15
     data["board"]["design_settings"]["defaults"]["zones"]["min_clearance"] = 0.2
     data["board"]["design_settings"]["diff_pair_dimensions"] = [
         {"gap": 0.0, "via_gap": 0.0, "width": 0.0}
@@ -1495,7 +1491,7 @@ def check_required_nets(path: Path, side: str):
 def main():
     if not SYMBOL_DIR.is_dir():
         raise SystemExit(f"KiCad symbols not found at {SYMBOL_DIR}. Run this inside the KiCad 10.0.7 image.")
-    from layout_pcb import layout_board, run_reports
+    from place import build_pcb
 
     lib = Lib()
     sheets = {}
@@ -1514,13 +1510,8 @@ def main():
         print(f"wrote {sch_path} parts={len(sheet.parts)} flags={len(sheet.flags)}", flush=True)
         sheets[side] = sheet
         projects[side] = project
-    only = os.environ.get("LAYOUT_SIDE", "").strip()
     for side in ("right", "left"):
-        if only and side != only:
-            continue
-        layout_board(sheets[side], side, projects[side])
-    if not only:
-        run_reports()
+        build_pcb(sheets[side], side, projects[side])
 
 
 if __name__ == "__main__":

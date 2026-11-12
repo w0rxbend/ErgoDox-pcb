@@ -50,7 +50,7 @@
      * RC(row, col) follows LAYOUT_ergodox_pretty argument order, with QMK's
      * transposed matrix: QMK's column index is this row, and QMK's row index
      * is this global column. Empty crossings ROW0/COL0 and ROW3/COL6 are
-     * omitted. SX1:7 and SX1:8 are not on the Standard plate and are omitted.
+     * omitted.
      */
     default_transform: keymap_transform_0 {
         compatible = "zmk,matrix-transform";

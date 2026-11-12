@@ -1,0 +1,16 @@
+# KiCad local state and backups
+*.kicad_prl
+*-backups/
+*.kicad_pcb-bak
+*.kicad_sch-bak
+fp-info-cache
+*.lck
+~*.lck
+
+# Router hand-off files
+*.dsn
+*.ses
+
+# Python
+__pycache__/
+*.pyc
