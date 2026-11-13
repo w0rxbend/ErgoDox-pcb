@@ -1413,6 +1413,8 @@ def wire_usb(sheet, part, vbus, dp, dm, cc1, cc2):
 
 
 def write_project(side: str, sch_name: str, root_uuid: str):
+    from layout_pcb import CLEAR, TRACK  # needs pcbnew, like build_pcb
+
     proj_dir = ROOT / side
     proj_dir.mkdir(parents=True, exist_ok=True)
     pro_path = proj_dir / f"{sch_name}.kicad_pro"
@@ -1427,7 +1429,7 @@ def write_project(side: str, sch_name: str, root_uuid: str):
     def netclass(name, width, priority):
         return {
             "bus_width": 12,
-            "clearance": 0.15,
+            "clearance": CLEAR,
             "diff_pair_gap": 0.2032,
             "diff_pair_via_gap": 0.25,
             "diff_pair_width": 0.2907,
@@ -1446,7 +1448,7 @@ def write_project(side: str, sch_name: str, root_uuid: str):
 
     # USB width is the JLC04161H-7628 90 ohm result in DESIGN.md section 13.
     data["net_settings"]["classes"] = [
-        netclass("Default", 0.2, 2147483647),
+        netclass("Default", TRACK, 2147483647),
         netclass("Power", 0.4, 0),
         netclass("USB", 0.2907, 1),
     ]
@@ -1456,8 +1458,8 @@ def write_project(side: str, sch_name: str, root_uuid: str):
     ] + [{"netclass": "USB", "pattern": "USB_D*"}]
     data["net_settings"]["netclass_assignments"] = None
     rules = data["board"]["design_settings"]["rules"]
-    rules["min_clearance"] = 0.15
-    rules["min_track_width"] = 0.15
+    rules["min_clearance"] = CLEAR
+    rules["min_track_width"] = TRACK
     data["board"]["design_settings"]["defaults"]["zones"]["min_clearance"] = 0.2
     data["board"]["design_settings"]["diff_pair_dimensions"] = [
         {"gap": 0.0, "via_gap": 0.0, "width": 0.0}

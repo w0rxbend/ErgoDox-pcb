@@ -15,8 +15,10 @@ GEO_PATH = ROOT / "notes" / "geometry.json"
 TX = 234.807846
 TY = 2.915703
 Y_PLATE = 209.9818
-CLEAR = 0.15  # same as the Default netclass in the .kicad_pro
-TRACK = 0.20
+# Signal track and gap. JLCPCB lists 0.09 mm as the 4-layer minimum; 0.15 mm
+# would not route out of the RP2040.
+CLEAR = 0.10  # same as the Default netclass in the .kicad_pro
+TRACK = 0.10
 VIA_D = 0.60
 VIA_DRILL = 0.30
 EDGE_COPPER = 0.30
@@ -149,7 +151,7 @@ def apply_design_rules(board):
     ds.SetBoardThickness(iu(1.6))
     pairs = {
         "m_MinClearance": CLEAR,
-        "m_TrackMinWidth": 0.15,
+        "m_TrackMinWidth": TRACK,
         "m_ViasMinSize": VIA_D,
         "m_ViasMinDrill": VIA_DRILL,
         "m_MinThroughDrill": 0.2,
