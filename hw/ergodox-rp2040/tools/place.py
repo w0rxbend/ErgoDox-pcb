@@ -64,7 +64,8 @@ Y_SPLIT = 51.6
 DIODE_AT = (-5.2, 1.85)
 LED_AT = (0.0, 5.08)
 LED_VIA_OUT = 1.4  # pad centre to plane via, along the LED long axis
-ROW_STUB_END = (5.842, -6.9)  # switch-local end of the row stub, above socket pad 2
+ROW_STUB_ENDS = ((5.842, -7.3), (4.2, -7.3))  # switch-local ends of the row stub, above socket pad 2
+SCREW_KEEP = 4.5  # mounting hole centre to the nearest fixed via
 PLANE_NETS = {"GND", "+3V3", "LED_5V"}
 # Fixed copper keeps this gap. It must exceed the clearance the router is given
 # (0.15 + 0.03 mm in route.py), or the router sees violations and gives up nearby.
@@ -239,13 +240,14 @@ def add_zone(board, net, layer, pts):
     zone.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
 
 
-def led_power_vias(board, led, rot):
-    """Tie the LED supply pads to the inner planes. The router leaves them open."""
+def led_vias(board, led, rot):
+    """A via beside each LED pad: supply pads reach the planes, and the router
+    gets a round target for the data pads, which it cannot reach on a rotated LED."""
     centre = led.GetPosition()
     ux, uy = world(0, 0, rot, 1, 0)  # LED long axis
     for pad in led.Pads():
-        if pad.GetNetname() not in ("GND", "LED_5V"):
-            continue
+        if not pad.GetNetname():
+            continue  # the last LED has no data output
         px, py = mm(pad.GetPosition().x), mm(pad.GetPosition().y)
         out = 1 if (px - mm(centre.x)) * ux + (py - mm(centre.y)) * uy > 0 else -1
         vx, vy = px + out * LED_VIA_OUT * ux, py + out * LED_VIA_OUT * uy
@@ -260,14 +262,18 @@ def fixed_track(board, net, a, b, width):
         track.SetLocked(True)
 
 
-def cell_tracks(board, socket, diode, cx, cy, rot):
+def cell_tracks(board, socket, diode, cx, cy, rot, holes):
     """Fixed copper inside a key cell. The router cannot reach a rotated socket pad."""
     pads = {p.GetNumber(): p for p in socket.Pads() if p.GetNumber()}
     at = lambda pad: (mm(pad.GetPosition().x), mm(pad.GetPosition().y))
     anode = next(p for p in diode.Pads() if p.GetNumber() == "2")
     fixed_track(board, pads["1"].GetNet(), at(pads["1"]), at(anode), 0.25)
     # Row pad: a stub to open board above the socket, for the router to pick up.
-    fixed_track(board, pads["2"].GetNet(), at(pads["2"]), world(cx, cy, rot, *ROW_STUB_END), 0.25)
+    # First end that stays out of the screw-head area of every mounting hole.
+    end = next(e for e in (world(cx, cy, rot, *local) for local in ROW_STUB_ENDS)
+               if all(math.hypot(e[0] - hx, e[1] - hy) > SCREW_KEEP for hx, hy in holes))
+    fixed_track(board, pads["2"].GetNet(), at(pads["2"]), end, 0.25)
+    add_via(board, pads["2"].GetNet(), *end).SetLocked(True)
 
 
 def pad_box(pad, grow=0.0):
@@ -383,10 +389,12 @@ def build_pcb(sheet, side, project):
     for a, b in outline:
         add_line(board, pcbnew.Edge_Cuts, xform(*a, side), xform(*b, side), 0.1)
 
+    screw_holes = []
     for i, hole in enumerate(geo["mounting_holes"], start=1):
         hx, hy = xform(hole["x_mm"], hole["y_mm"], side)
+        screw_holes.append((hx, hy))
         make_npth_fp(board, f"H{i}", hx, hy, 0, [(0, 0, hole["drill_diameter_mm"])])
-        placer.both.append((hx - 4.5, hy - 4.5, hx + 4.5, hy + 4.5))  # screw head and spacer
+        placer.both.append((hx - SCREW_KEEP, hy - SCREW_KEEP, hx + SCREW_KEEP, hy + SCREW_KEEP))
     for stab in geo["stabilizers"]:
         sx, sy = xform(stab["x_mm"], stab["y_mm"], side)
         holes = [(mirror * h["local_x_mm"], h["local_y_mm"], h["drill_diameter_mm"]) for h in stab["holes"]]
@@ -408,8 +416,8 @@ def build_pcb(sheet, side, project):
         dref = next(r for k, r in refs.items() if k[0] == "D" and k != "DS")
         placer.fixed(dref, *world(cx, cy, rot, *DIODE_AT), rot, True, keep=cell)
         placer.fixed(refs["DS"], *world(cx, cy, rot, *LED_AT), rot, True, keep=cell)
-        led_power_vias(board, placer.fps[refs["DS"]], rot)
-        cell_tracks(board, placer.fps[refs["SW"]], placer.fps[dref], cx, cy, rot)
+        led_vias(board, placer.fps[refs["DS"]], rot)
+        cell_tracks(board, placer.fps[refs["SW"]], placer.fps[dref], cx, cy, rot, screw_holes)
 
     for ref, (x, y, rot, back) in ANCHORS.items():
         placer.fixed(ref, *xform(x, y, side), mirror * rot, back)
