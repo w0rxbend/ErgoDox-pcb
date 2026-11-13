@@ -50,6 +50,8 @@ MAX_STEPS = 8_000_000  # long links across the controller band need several mill
 VIA_GAP = 12  # cells; two vias of one route stay 0.6 mm apart, for the 0.25 mm hole gap
 MAX_RIPS = 600  # pushes in one run; after that, copper in the way stays
 TRIES = 3  # times a net may find no path before it is given up
+PLANE_VIA_ROOM = 1.1  # mm from a plane via to a router via; a ring of vias would cut it off the plane
+PASSES = 2  # a second pass routes the links the first gave up before all others
 LANE = 1.2  # mm past each controller pad where only that pad's net may run
 LANE_HALF = 0.19  # mm; half the 0.4 mm pin pitch, less a hair so lanes never touch
 FRONT, BACK, VIA = 0, 1, 2  # sheets; FRONT and BACK are also the two sides
@@ -264,6 +266,10 @@ def load(board):
     for track in board.GetTracks():
         for sheet, outline in track_keep_out(track):
             grid.fix(sheet, outline, track.GetNetCode() or BLOCK)
+    planes = {zone.GetNetCode() for zone in board.Zones()}
+    for track in board.GetTracks():
+        if track.GetClass() == "PCB_VIA" and track.GetNetCode() in planes:
+            grid.fix(VIA, circle(*mm_of(track.GetPosition()), PLANE_VIA_ROOM), BLOCK)
     reserve_controller(grid, board)
     return grid
 
@@ -400,6 +406,7 @@ def lay(board, grid, net, path, link):
             route.items.append(item)
             for sheet, outline in shape:
                 grid.lay(sheet, outline, route)
+    return route
 
 
 def lift(board, grid, route):
@@ -411,11 +418,12 @@ def lift(board, grid, route):
 def route_all(board, grid, links, nets):
     """Route every link, round the queue, putting back the links of pushed routes.
 
-    links: (net code, link) in order. Returns the links given up and the number of pushes.
+    links: (net code, link) in order. Returns the links given up, the number of
+    pushes, and the routes now on the board.
     """
     queue = deque(links)
     failures, pushed = {}, {}
-    given_up = []
+    given_up, alive = [], set()
     while queue:
         code, link = queue.popleft()
         (a_mm, a_sides), (b_mm, b_sides) = link
@@ -428,10 +436,11 @@ def route_all(board, grid, links, nets):
             continue
         for other in in_the_way(grid, code, path):
             lift(board, grid, other)
+            alive.discard(other)
             pushed[other.code] = pushed.get(other.code, 0) + 1
             queue.extend((other.code, other_link) for other_link in other.links)
-        lay(board, grid, nets[code], path, link)
-    return given_up, sum(pushed.values())
+        alive.add(lay(board, grid, nets[code], path, link))
+    return given_up, sum(pushed.values()), alive
 
 
 def end_of(item):
@@ -463,8 +472,20 @@ def main(side, report_path):
     # Controller pins first, then the shortest: those have the fewest ways out.
     controller = {pad.GetNetCode() for pad in board.FindFootprintByReference("U1").Pads()}
     links.sort(key=lambda entry: (entry[0] not in controller, math.dist(entry[1][0][0], entry[1][1][0])))
-    given_up, pushes = route_all(board, grid, links, {net.GetNetCode(): net for net in nets.values()})
-    pcbnew.SaveBoard(str(path), board)
+    by_code = {net.GetNetCode(): net for net in nets.values()}
+    best = None
+    for attempt in range(PASSES):
+        given_up, pushes, alive = route_all(board, grid, links, by_code)
+        print(f"{side}: pass {attempt + 1}, {len(given_up)} of {len(links)} links open", flush=True)
+        if best is None or len(given_up) < len(best[0]):
+            best = (given_up, pushes)
+            pcbnew.SaveBoard(str(path), board)
+        if not given_up:
+            break
+        for route in alive:  # start again from the board as loaded, hard links first
+            lift(board, grid, route)
+        links = given_up + [entry for entry in links if entry not in given_up]
+    given_up, pushes = best
     names = sorted({name for name, code in codes.items() for c, _ in given_up if c == code})
     print(f"{side}: took out {len(bad)} faulty items, {len(links)} links to route, "
           f"{pushes} pushes, given up {len(given_up)}: {names}", flush=True)

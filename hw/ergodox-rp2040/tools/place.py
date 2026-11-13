@@ -33,7 +33,7 @@ from layout_pcb import (
 )
 
 POWER = {"GND", "+3V3", "+5V", "+1V1", "LED_5V"}
-GAP = 0.5  # courtyard to courtyard, leaves a routing channel
+GAP = 1.0  # courtyard to courtyard: room for three 0.1 mm tracks between parts
 
 # Right-hand frame: ref -> (x, y, rotation, back side).
 # USB-C mouth overhangs the top edge (y = 30.48) by 0.5 mm.
