@@ -50,6 +50,8 @@ MAX_STEPS = 8_000_000  # long links across the controller band need several mill
 VIA_GAP = 12  # cells; two vias of one route stay 0.6 mm apart, for the 0.25 mm hole gap
 MAX_RIPS = 600  # pushes in one run; after that, copper in the way stays
 TRIES = 3  # times a net may find no path before it is given up
+LANE = 1.2  # mm past each controller pad where only that pad's net may run
+LANE_HALF = 0.19  # mm; half the 0.4 mm pin pitch, less a hair so lanes never touch
 FRONT, BACK, VIA = 0, 1, 2  # sheets; FRONT and BACK are also the two sides
 LAYER = {FRONT: pcbnew.F_Cu, BACK: pcbnew.B_Cu}
 
@@ -202,6 +204,43 @@ def fix_cut(grid, outline_for):
             grid.fix(sheet, outline, BLOCK)
 
 
+def reserve_controller(grid, board):
+    """Keep the way out of every controller pin open, and keep vias from under it.
+
+    Routes of other nets used to cross right in front of a pin and wall it in.
+    A router via under the package cut the +3V3 plane round the power vias there.
+    """
+    controller = board.FindFootprintByReference("U1")
+    planes = {zone.GetNetCode() for zone in board.Zones()}
+    centre = mm_of(controller.GetPosition())
+    pads = [pad for pad in controller.Pads() if pad.GetNumber() != "57"]  # 57: the centre pad
+    edges = []
+    for pad in pads:
+        box = pad.GetBoundingBox()
+        edges.append((pcbnew.ToMM(box.GetLeft()), pcbnew.ToMM(box.GetTop()),
+                      pcbnew.ToMM(box.GetRight()), pcbnew.ToMM(box.GetBottom())))
+    left, top = min(e[0] for e in edges), min(e[1] for e in edges)
+    right, bottom = max(e[2] for e in edges), max(e[3] for e in edges)
+    for i in grid.cells([(left, top), (right, top), (right, bottom), (left, bottom)]):
+        grid.fixed[VIA][i] = BLOCK
+    for pad, (x0, y0, x1, y1) in zip(pads, edges):
+        code = pad.GetNetCode()
+        if not code or code in planes:
+            continue
+        (px, py) = mm_of(pad.GetPosition())
+        if abs(px - centre[0]) > abs(py - centre[1]):  # left or right row: the lane runs in x
+            near, far = (x1, x1 + LANE) if px > centre[0] else (x0 - LANE, x0)
+            lane = [(near, py - LANE_HALF), (far, py - LANE_HALF), (far, py + LANE_HALF), (near, py + LANE_HALF)]
+        else:
+            near, far = (y1, y1 + LANE) if py > centre[1] else (y0 - LANE, y0)
+            lane = [(px - LANE_HALF, near), (px + LANE_HALF, near), (px + LANE_HALF, far), (px - LANE_HALF, far)]
+        for i in grid.cells(lane):
+            for side in sides_of(pad):
+                if grid.fixed[side][i] == 0:
+                    grid.fixed[side][i] = code
+            grid.fixed[VIA][i] = BLOCK
+
+
 def load(board):
     """The grid of what is on the board: pads, tracks, vias, holes and the edge."""
     grid = Grid(board)
@@ -225,6 +264,7 @@ def load(board):
     for track in board.GetTracks():
         for sheet, outline in track_keep_out(track):
             grid.fix(sheet, outline, track.GetNetCode() or BLOCK)
+    reserve_controller(grid, board)
     return grid
 
 
