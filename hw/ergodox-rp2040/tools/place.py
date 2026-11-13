@@ -63,6 +63,7 @@ Y_SPLIT = 51.6
 # Key cell, switch-local top view (x right, y down), parts on the back.
 DIODE_AT = (-5.2, 1.85)
 LED_AT = (0.0, 5.08)
+DIODE_VIA_OUT = 1.3  # cathode pad centre to its via, on a diode that is not square to the grid
 LED_VIA_OUT = 1.4  # pad centre to plane via, along the LED long axis
 ROW_STUB_ENDS = ((5.842, -7.3), (4.2, -7.3))  # switch-local ends of the row stub, above socket pad 2
 SCREW_KEEP = 4.5  # mounting hole centre to the nearest fixed via
@@ -72,6 +73,7 @@ PLANE_NETS = {"GND", "+3V3", "LED_5V"}
 ROUTER_GAP = 0.19
 U1_VIA_RING = 2.35
 U1_ELBOW = 2.7  # inside the pin row, whose pads end 3.0 mm from the centre  # plane vias under U1 sit this far from its centre
+U1_ESCAPE = 1.0  # band round the package kept free of parts, so every pin can leave
 U1_MOAT = 7.0  # half-width kept free of late parts around U1, for pin escape
 # Cells turned 180 degrees so a socket pad clears a mounting hole. The plate
 # cutout is square, so the switch goes in turned as well.
@@ -111,7 +113,7 @@ def side_rect(rect, side):
     return (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
 
 
-def spiral(cx, cy, step=0.25, reach=18.0):
+def spiral(cx, cy, step=0.25, reach=26.0):
     yield cx, cy
     for ring in range(1, int(reach / step)):
         r = ring * step
@@ -240,6 +242,17 @@ def add_zone(board, net, layer, pts):
     zone.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
 
 
+def snapped(a, b):
+    """Point b moved so that a-b runs at a multiple of 45 degrees, same length.
+
+    The router does not pick up a fixed stub that lies at any other angle,
+    which is every stub in the thumb cluster.
+    """
+    angle = round(math.atan2(b[1] - a[1], b[0] - a[0]) / (math.pi / 4)) * (math.pi / 4)
+    length = math.dist(a, b)
+    return (a[0] + length * math.cos(angle), a[1] + length * math.sin(angle))
+
+
 def led_vias(board, led, rot):
     """A via beside each LED pad: supply pads reach the planes, and the router
     gets a round target for the data pads, which it cannot reach on a rotated LED."""
@@ -250,10 +263,35 @@ def led_vias(board, led, rot):
             continue  # the last LED has no data output
         px, py = mm(pad.GetPosition().x), mm(pad.GetPosition().y)
         out = 1 if (px - mm(centre.x)) * ux + (py - mm(centre.y)) * uy > 0 else -1
-        vx, vy = px + out * LED_VIA_OUT * ux, py + out * LED_VIA_OUT * uy
+        vx, vy = snapped((px, py), (px + out * LED_VIA_OUT * ux, py + out * LED_VIA_OUT * uy))
         for item in (add_track(board, pad.GetNet(), pcbnew.B_Cu, (px, py), (vx, vy), 0.4),
                      add_via(board, pad.GetNet(), vx, vy)):
             item.SetLocked(True)  # locked copper is exported as fixed, so the router keeps it
+
+
+def chain_turn(placer, ref, rot, led_at):
+    """0 or 180: the turn that points this LED's data output at the next LED.
+
+    The router fails on a link that has to run round its own LED, so every LED
+    faces down the chain. The cutout is symmetric, so either way fits.
+    """
+    index = int(ref[2:])
+    part = placer.parts[ref]
+    out_net, in_net = f"LED_{index}", f"LED_{index - 1}"
+    ahead, behind = led_at.get(f"DS{index + 1}"), led_at.get(f"DS{index - 1}")
+    probe = load_fp(part["footprint"])
+    placer.board.Add(probe)  # Flip needs the board
+    put(probe, *led_at[ref], rot, True)
+    cost = 0.0  # positive when the pads face the wrong way
+    for pad in probe.Pads():
+        net = placer.net_of(part, pad.GetNumber())
+        target = ahead if net == out_net else behind if net == in_net else None
+        if target:
+            here = (mm(pad.GetPosition().x), mm(pad.GetPosition().y))
+            mirrored = (2 * led_at[ref][0] - here[0], 2 * led_at[ref][1] - here[1])
+            cost += math.dist(here, target) - math.dist(mirrored, target)
+    placer.board.Remove(probe)
+    return 180 if cost > 0 else 0
 
 
 def fixed_track(board, net, a, b, width):
@@ -270,10 +308,17 @@ def cell_tracks(board, socket, diode, cx, cy, rot, holes):
     fixed_track(board, pads["1"].GetNet(), at(pads["1"]), at(anode), 0.25)
     # Row pad: a stub to open board above the socket, for the router to pick up.
     # First end that stays out of the screw-head area of every mounting hole.
-    end = next(e for e in (world(cx, cy, rot, *local) for local in ROW_STUB_ENDS)
+    end = next(e for e in (snapped(at(pads["2"]), world(cx, cy, rot, *local)) for local in ROW_STUB_ENDS)
                if all(math.hypot(e[0] - hx, e[1] - hy) > SCREW_KEEP for hx, hy in holes))
     fixed_track(board, pads["2"].GetNet(), at(pads["2"]), end, 0.25)
     add_via(board, pads["2"].GetNet(), *end).SetLocked(True)
+    if rot % 90:  # same for the column pad of a turned diode: a via past its end
+        cathode = next(p for p in diode.Pads() if p.GetNumber() == "1")
+        (ax, ay), (kx, ky) = at(anode), at(cathode)
+        reach = DIODE_VIA_OUT / math.dist((ax, ay), (kx, ky))
+        end = snapped((kx, ky), (kx + (kx - ax) * reach, ky + (ky - ay) * reach))
+        fixed_track(board, cathode.GetNet(), (kx, ky), end, 0.25)
+        add_via(board, cathode.GetNet(), *end).SetLocked(True)
 
 
 def pad_box(pad, grow=0.0):
@@ -407,20 +452,28 @@ def build_pcb(sheet, side, project):
         legacy = part["fields"].get("Legacy")
         if legacy:
             by_legacy.setdefault(legacy, {})[part["ref"][:2]] = part["ref"]
-    for legacy, refs in by_legacy.items():
+
+    def cell_frame(legacy):
         sw = switches[legacy]
-        cx, cy = xform(sw["x_mm"], sw["y_mm"], side)
         rot = mirror * sw["rotation_deg"] + (180 if legacy in TURNED[side] else 0)
+        return (*xform(sw["x_mm"], sw["y_mm"], side), rot)
+
+    led_at = {refs["DS"]: world(*cell_frame(legacy), *LED_AT) for legacy, refs in by_legacy.items()}
+    for legacy, refs in by_legacy.items():
+        cx, cy, rot = cell_frame(legacy)
         cell = (cx - 7.6, cy - 7.6, cx + 7.6, cy + 7.6)
         placer.fixed(refs["SW"], cx, cy, rot, True, keep=cell)
         dref = next(r for k, r in refs.items() if k[0] == "D" and k != "DS")
         placer.fixed(dref, *world(cx, cy, rot, *DIODE_AT), rot, True, keep=cell)
-        placer.fixed(refs["DS"], *world(cx, cy, rot, *LED_AT), rot, True, keep=cell)
-        led_vias(board, placer.fps[refs["DS"]], rot)
+        led_rot = rot + chain_turn(placer, refs["DS"], rot, led_at)
+        placer.fixed(refs["DS"], *led_at[refs["DS"]], led_rot, True, keep=cell)
+        led_vias(board, placer.fps[refs["DS"]], led_rot)
         cell_tracks(board, placer.fps[refs["SW"]], placer.fps[dref], cx, cy, rot, screw_holes)
 
     for ref, (x, y, rot, back) in ANCHORS.items():
         placer.fixed(ref, *xform(x, y, side), mirror * rot, back)
+    b = box(placer.fps["U1"])
+    placer.occ[True].append((b[0] - U1_ESCAPE, b[1] - U1_ESCAPE, b[2] + U1_ESCAPE, b[3] + U1_ESCAPE))
     for ref in ("J1", "J2"):  # keep the back clear under the pad row for fan-out vias
         b = box(placer.fps[ref])
         placer.both.append((b[0], b[1], b[2], b[3] + 2.0))
