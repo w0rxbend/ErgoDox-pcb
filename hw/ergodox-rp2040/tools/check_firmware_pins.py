@@ -8,6 +8,8 @@ Left and right allow-sets must match. Rotation other than 0 is an error.
 One image is a shield overlay, the quote-includes it follows, and
 boards/rpi_pico_rp2040_zmk.overlay once. Angle-bracket includes are skipped.
 PIO pinmux plus mosi-gpios on the same pin count as one led-data use.
+The LED driver's clock and MISO pins carry no signal, so they may be
+unconnected on the board; they must still not clash with another use.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ BOARD_OVERLAY = SHIELD / "boards" / "rpi_pico_rp2040_zmk.overlay"
 Y_SIGN = -1
 TOL = 0.02
 LIB_ID = "MCU_RaspberryPi:RP2040"
+UNWIRED_OK = {"clk-gpios", "miso-gpios"}  # the LED SPI driver's unused lines
 
 
 def tokenize(text: str):
@@ -303,8 +306,8 @@ def normalize(uses):
 
 def check_image(uses, allowed: set[int]):
     mapped, errors = normalize(uses)
-    for pin in sorted(mapped):
-        if pin not in allowed:
+    for pin, tag in sorted(mapped.items()):
+        if pin not in allowed and tag not in UNWIRED_OK:
             errors.append(f"GPIO{pin} is not a connected RP2040 GPIO on the schematic")
     return mapped, errors
 

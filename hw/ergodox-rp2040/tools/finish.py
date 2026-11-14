@@ -4,7 +4,10 @@
     finish.py <side> <drc.json>
 
 Removes every unlocked track or via named in a violation of the DRC report,
-then routes each open connection with a grid search on the two outer layers.
+then routes each open connection with a grid search on the two outer layers,
+and on In2 inside the +3V3 pour round the controller, where the pour flows
+round the tracks. In2 costs more, so it carries only what the outer layers
+cannot.
 A connection that is fenced in may push through routes of other nets that
 this run laid. Pushed routes are taken out and their links go back in the
 queue. Copper that was on the board before the run is never moved: pushing
@@ -51,11 +54,15 @@ VIA_GAP = 12  # cells; two vias of one route stay 0.6 mm apart, for the 0.25 mm 
 MAX_RIPS = 600  # pushes in one run; after that, copper in the way stays
 TRIES = 3  # times a net may find no path before it is given up
 PLANE_VIA_ROOM = 1.1  # mm from a plane via to a router via; a ring of vias would cut it off the plane
+PROGRESS = 25  # print a progress line every this many links laid
 PASSES = 2  # a second pass routes the links the first gave up before all others
 LANE = 1.2  # mm past each controller pad where only that pad's net may run
 LANE_HALF = 0.19  # mm; half the 0.4 mm pin pitch, less a hair so lanes never touch
-FRONT, BACK, VIA = 0, 1, 2  # sheets; FRONT and BACK are also the two sides
-LAYER = {FRONT: pcbnew.F_Cu, BACK: pcbnew.B_Cu}
+INNER_COST = 3.0  # price per cell of track on In2, against 1 on the outer layers
+INNER_POWER_VIA_ROOM = 0.8  # mm from a +3V3 plane via to an In2 track, so the pour still reaches it
+FRONT, BACK, INNER, VIA = 0, 1, 2, 3  # sheets; the first three are also the routing layers
+SIDES = (FRONT, BACK, INNER)
+LAYER = {FRONT: pcbnew.F_Cu, BACK: pcbnew.B_Cu, INNER: pcbnew.In2_Cu}
 
 
 class Route:
@@ -70,10 +77,11 @@ class Route:
         self.items = items
         self.links = links
         self.cells = []  # (sheet, index) this route closes to other nets
+        self.inner = False  # True when the route has a track on In2
 
 
 class Grid:
-    """What may pass each cell, on three sheets: front tracks, back tracks, via centres.
+    """What may pass each cell, on four sheets: tracks on each routing layer, and via centres.
 
     fixed: pads, locked copper and cuts. Per cell: 0 free, a net code when only
     that net is near, BLOCK otherwise.
@@ -87,8 +95,9 @@ class Grid:
         self.width = int((pcbnew.ToMM(box.GetWidth()) + 2.0) / GRID) + 1
         self.height = int((pcbnew.ToMM(box.GetHeight()) + 2.0) / GRID) + 1
         size = self.width * self.height
-        self.fixed = [array("H", bytes(2 * size)) for _ in (FRONT, BACK, VIA)]
-        self.laid = [{} for _ in (FRONT, BACK, VIA)]
+        self.fixed = [array("H", bytes(2 * size)) for _ in (*SIDES, VIA)]
+        self.fixed[INNER] = array("H", [BLOCK]) * size  # opened where the +3V3 pour is
+        self.laid = [{} for _ in (*SIDES, VIA)]
 
     def cell(self, x_mm, y_mm):
         return int((x_mm - self.x0) / GRID), int((y_mm - self.y0) / GRID)
@@ -181,13 +190,13 @@ def copper_keep_out(sides, a, b, half_width):
 def track_keep_out(item):
     if item.GetClass() == "PCB_VIA":
         centre = mm_of(item.GetPosition())
-        return copper_keep_out((FRONT, BACK), centre, centre, pcbnew.ToMM(item.GetWidth(pcbnew.F_Cu)) / 2)
+        return copper_keep_out(SIDES, centre, centre, pcbnew.ToMM(item.GetWidth(pcbnew.F_Cu)) / 2)
     return copper_keep_out(sides_of(item), mm_of(item.GetStart()), mm_of(item.GetEnd()),
                            pcbnew.ToMM(item.GetWidth()) / 2)
 
 
 def sides_of(item):
-    return [side for side in (FRONT, BACK) if item.IsOnLayer(LAYER[side])]
+    return [side for side in SIDES if item.IsOnLayer(LAYER[side])]
 
 
 def pad_keep_out(item):
@@ -201,7 +210,7 @@ def pad_keep_out(item):
 
 def fix_cut(grid, outline_for):
     """Close cells near a board edge or hole. outline_for(margin) gives the shapes."""
-    for sheet, reach in ((FRONT, TRACK / 2), (BACK, TRACK / 2), (VIA, VIA_RADIUS)):
+    for sheet, reach in ((FRONT, TRACK / 2), (BACK, TRACK / 2), (INNER, TRACK / 2), (VIA, VIA_RADIUS)):
         for outline in outline_for(EDGE_CLEARANCE + reach + SLACK):
             grid.fix(sheet, outline, BLOCK)
 
@@ -225,6 +234,7 @@ def reserve_controller(grid, board):
     right, bottom = max(e[2] for e in edges), max(e[3] for e in edges)
     for i in grid.cells([(left, top), (right, top), (right, bottom), (left, bottom)]):
         grid.fixed[VIA][i] = BLOCK
+        grid.fixed[INNER][i] = BLOCK  # the pour under the package feeds its power vias
     for pad, (x0, y0, x1, y1) in zip(pads, edges):
         code = pad.GetNetCode()
         if not code or code in planes:
@@ -243,9 +253,23 @@ def reserve_controller(grid, board):
             grid.fixed[VIA][i] = BLOCK
 
 
+def open_inner(grid, board):
+    """Open In2 for tracks where the +3V3 pour covers it."""
+    for zone in board.Zones():
+        if zone.GetNetname() != "+3V3" or not zone.IsOnLayer(pcbnew.In2_Cu):
+            continue
+        outline = zone.Outline().Outline(0)
+        points = [mm_of(outline.CPoint(k)) for k in range(outline.PointCount())]
+        for i in grid.cells(points):
+            grid.fixed[INNER][i] = 0
+        return zone.GetNetCode()
+    raise SystemExit("no +3V3 zone on In2")
+
+
 def load(board):
     """The grid of what is on the board: pads, tracks, vias, holes and the edge."""
     grid = Grid(board)
+    power = open_inner(grid, board)
     edge_shapes = [g for g in board.GetDrawings() if g.GetLayer() == pcbnew.Edge_Cuts]
     fixed = []
     for fp in board.GetFootprints():
@@ -269,7 +293,10 @@ def load(board):
     planes = {zone.GetNetCode() for zone in board.Zones()}
     for track in board.GetTracks():
         if track.GetClass() == "PCB_VIA" and track.GetNetCode() in planes:
-            grid.fix(VIA, circle(*mm_of(track.GetPosition()), PLANE_VIA_ROOM), BLOCK)
+            centre = mm_of(track.GetPosition())
+            grid.fix(VIA, circle(*centre, PLANE_VIA_ROOM), BLOCK)
+            if track.GetNetCode() == power:
+                grid.fix(INNER, circle(*centre, INNER_POWER_VIA_ROOM), BLOCK)
     reserve_controller(grid, board)
     return grid
 
@@ -305,11 +332,14 @@ def moves(grid, net, side, i, push, pushed):
             if corner_a is None or corner_b is None:
                 continue
             price += corner_a + corner_b
-        yield side, i + step, length + price
+        yield side, i + step, length * (INNER_COST if side == INNER else 1.0) + price
     drill = toll(grid, VIA, i, 0, push, pushed)  # a via may not sit beside copper of its own net either
-    landing = toll(grid, 1 - side, i, net, push, pushed)
-    if drill is not None and landing is not None:
-        yield 1 - side, i, VIA_COST + drill + landing
+    if drill is None:
+        return
+    for other in SIDES:
+        landing = toll(grid, other, i, net, push, pushed) if other != side else None
+        if landing is not None:
+            yield other, i, VIA_COST + drill + landing
 
 
 def search(grid, net, start, goal, push, pushed):
@@ -399,14 +429,25 @@ def lay(board, grid, net, path, link):
     points = [(points[0][0], start_mm)] + points + [(points[-1][0], goal_mm)]
     for (side_a, a), (side_b, b) in zip(points, points[1:]):
         if side_a != side_b:
-            item, shape = add_via(board, net, *a), copper_keep_out((FRONT, BACK), a, a, VIA_RADIUS)
+            item, shape = add_via(board, net, *a), copper_keep_out(SIDES, a, a, VIA_RADIUS)
         else:
             item, shape = add_track(board, net, LAYER[side_a], a, b, TRACK), copper_keep_out((side_a,), a, b, TRACK / 2)
+            route.inner = route.inner or side_a == INNER
         if item:
             route.items.append(item)
             for sheet, outline in shape:
                 grid.lay(sheet, outline, route)
     return route
+
+
+def save(board, path, routes):
+    """Save the board. In2 must be a mixed layer once it carries tracks.
+
+    Asks the routes, not the board: by now KiCad's Python objects may have stopped working.
+    """
+    if any(route.inner for route in routes):
+        board.SetLayerType(pcbnew.In2_Cu, pcbnew.LT_MIXED)
+    pcbnew.SaveBoard(str(path), board)
 
 
 def lift(board, grid, route):
@@ -424,6 +465,7 @@ def route_all(board, grid, links, nets):
     queue = deque(links)
     failures, pushed = {}, {}
     given_up, alive = [], set()
+    laid = 0
     while queue:
         code, link = queue.popleft()
         (a_mm, a_sides), (b_mm, b_sides) = link
@@ -440,6 +482,10 @@ def route_all(board, grid, links, nets):
             pushed[other.code] = pushed.get(other.code, 0) + 1
             queue.extend((other.code, other_link) for other_link in other.links)
         alive.add(lay(board, grid, nets[code], path, link))
+        laid += 1
+        if laid % PROGRESS == 0:
+            print(f"  {laid} laid, {len(queue)} queued, {sum(pushed.values())} pushes, "
+                  f"{len(given_up)} given up", flush=True)
     return given_up, sum(pushed.values()), alive
 
 
@@ -447,8 +493,8 @@ def end_of(item):
     """(net name, ((x, y) mm, sides)) of one end named in a DRC report."""
     text = item["description"]
     name = re.search(r"\[(.*?)\]", text).group(1)
-    sides = (FRONT, BACK) if text.startswith("Via") else tuple(
-        side for label, side in (("F.Cu", FRONT), ("B.Cu", BACK)) if label in text)
+    sides = SIDES if text.startswith("Via") else tuple(
+        side for label, side in (("F.Cu", FRONT), ("B.Cu", BACK), ("In2.Cu", INNER)) if label in text)
     return name, ((item["pos"]["x"], item["pos"]["y"]), sides)
 
 
@@ -479,7 +525,7 @@ def main(side, report_path):
         print(f"{side}: pass {attempt + 1}, {len(given_up)} of {len(links)} links open", flush=True)
         if best is None or len(given_up) < len(best[0]):
             best = (given_up, pushes)
-            pcbnew.SaveBoard(str(path), board)
+            save(board, path, alive)
         if not given_up:
             break
         for route in alive:  # start again from the board as loaded, hard links first

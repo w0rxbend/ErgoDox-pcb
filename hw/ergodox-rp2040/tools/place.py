@@ -45,7 +45,7 @@ ANCHORS = {
     "U1": (152.0, 42.0, 0, True),
     "U3": (127.5, 40.5, 0, True),
     "U5": (97.5, 41.0, 0, True),
-    "U4": (101.0, 54.0, 0, True),  # inside the LED_5V pour
+    "U4": (158.5, 55.0, 0, True),  # inside the LED_5V pour, beside the controller: short LED_ON
 }
 # Parts with no signal net of their own: sit beside this pad.
 NEAR_PAD = {
@@ -502,7 +502,7 @@ def build_pcb(sheet, side, project):
     add_zone(board, net("+3V3"), pcbnew.In2_Cu, [(x0, y0), (x1, y0), (x1, ysplit - 0.3), (x0, ysplit - 0.3)])
     add_zone(board, net("LED_5V"), pcbnew.In2_Cu, [(x0, ysplit + 0.3), (x1, ysplit + 0.3), (x1, y1), (x0, y1)])
     board.SetLayerType(pcbnew.In1_Cu, pcbnew.LT_POWER)
-    board.SetLayerType(pcbnew.In2_Cu, pcbnew.LT_POWER)
+    board.SetLayerType(pcbnew.In2_Cu, pcbnew.LT_MIXED)  # finish.py runs a few tracks in the +3V3 pour
 
     hand = side.upper()
     for text, x, y, size in (

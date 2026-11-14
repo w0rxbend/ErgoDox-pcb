@@ -336,48 +336,48 @@ The LED is reverse-mounted on the back and shines up through a cutout under the 
 
 The JLCPCB page lists 3.7 V to 5.5 V supply and 800 kbit/s. The SK6812MINI-E VIH row was not read this pass. The older note for the 5050 SK6812 was VIH minimum `0.65 × VDD` (3.25 V at 5.0 V) against RP2040 VOH minimum 2.62 V. Assume the same margin problem until the MINI-E datasheet is read. No level shifter is fitted. It stays a blocker in section 17.
 
-Chain order is the PCB order and the firmware index. Index 1 is the first LED, fed from GPIO2. The chain snakes by legacy row, and within a row by KiCad X, reversing every other row. Coordinates below are the right-hand board, Y down, from `notes/geometry.json`.
+Chain order is the PCB order and the firmware index. Index 1 is the first LED, fed from GPIO2. It is the top-row key beside the controller, so the data line from GPIO2 stays short. The chain snakes down the legacy rows, reversing direction each row, and ends in the thumb cluster. Coordinates below are the right-hand board, Y down, from `notes/geometry.json`.
 
 | Index | Reference | x mm | y mm | rotation deg |
 | --- | --- | --- | --- | --- |
-| 1 | SW0:7 | 34.69894 | 143.26870 | 25 |
-| 2 | SW0:9 | 42.74820 | 160.53308 | 25 |
-| 3 | SW0:12 | 50.80000 | 177.80000 | 25 |
-| 4 | SW0:8 | 51.96332 | 135.21944 | 25 |
-| 5 | SW0:11 | 64.03848 | 161.11728 | 115 |
-| 6 | 6 | SW0:10 | 81.30286 | 153.06548 | 115 |
-| 8 | 7 | SW1:13 | 186.69000 | 143.20266 | 0 |
-| 8 | SW1:12 | 167.64000 | 143.20266 | 0 |
-| 9 | SW1:11 | 148.59000 | 140.02766 | 0 |
-| 10 | SW1:10 | 129.54000 | 138.43000 | 0 |
-| 11 | SW1:9 | 110.49000 | 140.02766 | 0 |
-| 14 | 15 | 12 | SW2:7 | 72.39000 | 117.48516 | 90 |
-| 13 | SW2:8 | 91.44000 | 122.24766 | 0 |
-| 14 | SW2:9 | 110.49000 | 120.97766 | 0 |
-| 15 | SW2:10 | 129.54000 | 119.38000 | 0 |
-| 16 | SW2:11 | 148.59000 | 120.97766 | 0 |
-| 17 | SW2:12 | 167.64000 | 124.15266 | 0 |
-| 18 | SW2:13 | 191.45250 | 124.15266 | 0 |
-| 19 | SW3:13 | 191.45250 | 105.10266 | 0 |
-| 20 | SW3:12 | 167.64000 | 105.10266 | 0 |
-| 21 | SW3:11 | 148.59000 | 101.92766 | 0 |
-| 22 | SW3:10 | 129.54000 | 100.33000 | 0 |
-| 23 | SW3:9 | 110.49000 | 101.92766 | 0 |
-| 24 | SW3:8 | 91.44000 | 103.19766 | 0 |
-| 25 | SW4:7 | 72.39000 | 88.91016 | 90 |
-| 26 | SW4:8 | 91.44000 | 84.14766 | 0 |
-| 27 | SW4:9 | 110.49000 | 82.87766 | 0 |
-| 28 | SW4:10 | 129.54000 | 81.28000 | 0 |
-| 29 | SW4:11 | 148.59000 | 82.87766 | 0 |
-| 30 | SW4:12 | 167.64000 | 86.05266 | 0 |
-| 31 | SW4:13 | 191.45250 | 86.05266 | 0 |
-| 32 | SW5:13 | 191.45250 | 67.00520 | 0 |
-| 33 | SW5:12 | 167.64000 | 67.00520 | 0 |
-| 34 | SW5:11 | 148.59000 | 63.82766 | 0 |
-| 35 | SW5:10 | 129.54000 | 62.23000 | 0 |
-| 36 | SW5:9 | 110.49000 | 63.82766 | 0 |
-| 37 | SW5:8 | 91.44000 | 65.10020 | 0 |
-| 38 | SW5:7 | 72.39000 | 65.10020 | 0 |
+| 1 | SW5:13 | 191.45250 | 67.00520 | 0 |
+| 2 | SW5:12 | 167.64000 | 67.00520 | 0 |
+| 3 | SW5:11 | 148.59000 | 63.82766 | 0 |
+| 4 | SW5:10 | 129.54000 | 62.23000 | 0 |
+| 5 | SW5:9 | 110.49000 | 63.82766 | 0 |
+| 6 | SW5:8 | 91.44000 | 65.10020 | 0 |
+| 7 | SW5:7 | 72.39000 | 65.10020 | 0 |
+| 8 | SW4:7 | 72.39000 | 88.91016 | 90 |
+| 9 | SW4:8 | 91.44000 | 84.14766 | 0 |
+| 10 | SW4:9 | 110.49000 | 82.87766 | 0 |
+| 11 | SW4:10 | 129.54000 | 81.28000 | 0 |
+| 12 | SW4:11 | 148.59000 | 82.87766 | 0 |
+| 13 | SW4:12 | 167.64000 | 86.05266 | 0 |
+| 14 | SW4:13 | 191.45250 | 86.05266 | 0 |
+| 15 | SW3:13 | 191.45250 | 105.10266 | 0 |
+| 16 | SW3:12 | 167.64000 | 105.10266 | 0 |
+| 17 | SW3:11 | 148.59000 | 101.92766 | 0 |
+| 18 | SW3:10 | 129.54000 | 100.33000 | 0 |
+| 19 | SW3:9 | 110.49000 | 101.92766 | 0 |
+| 20 | SW3:8 | 91.44000 | 103.19766 | 0 |
+| 21 | SW2:7 | 72.39000 | 117.48516 | 90 |
+| 22 | SW2:8 | 91.44000 | 122.24766 | 0 |
+| 23 | SW2:9 | 110.49000 | 120.97766 | 0 |
+| 24 | SW2:10 | 129.54000 | 119.38000 | 0 |
+| 25 | SW2:11 | 148.59000 | 120.97766 | 0 |
+| 26 | SW2:12 | 167.64000 | 124.15266 | 0 |
+| 27 | SW2:13 | 191.45250 | 124.15266 | 0 |
+| 28 | SW1:13 | 186.69000 | 143.20266 | 0 |
+| 29 | SW1:12 | 167.64000 | 143.20266 | 0 |
+| 30 | SW1:11 | 148.59000 | 140.02766 | 0 |
+| 31 | SW1:10 | 129.54000 | 138.43000 | 0 |
+| 32 | SW1:9 | 110.49000 | 140.02766 | 0 |
+| 33 | SW0:10 | 81.30286 | 153.06548 | 115 |
+| 34 | SW0:11 | 64.03848 | 161.11728 | 115 |
+| 35 | SW0:8 | 51.96332 | 135.21944 | 25 |
+| 36 | SW0:12 | 50.80000 | 177.80000 | 25 |
+| 37 | SW0:9 | 42.74820 | 160.53308 | 25 |
+| 38 | SW0:7 | 34.69894 | 143.26870 | 25 |
 
 The left project uses the mirrored coordinates and the same index order. `color-mapping` in the ZMK example is green, red, blue. Zephyr's usual WS2812 pixel is GRB. The OPSCO PDF's channel order was not re-read this pass. Confirm GRB against the C5378720 PDF before the first light-up. Do not assume an RGBW channel.
 
