@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Place both ErgoDox RP2040 boards. Routing is done by Freerouting (route.py).
+"""Place both ErgoDox RP2040 boards. Routing is done by finish.py.
 
 Switches plug in from the front. Sockets, diodes, LEDs and the controller sit
 on the back. Only the two USB-C receptacles and the two buttons are on the
@@ -69,7 +69,7 @@ ROW_STUB_ENDS = ((5.842, -7.3), (4.2, -7.3))  # switch-local ends of the row stu
 SCREW_KEEP = 4.5  # mounting hole centre to the nearest fixed via
 PLANE_NETS = {"GND", "+3V3", "LED_5V"}
 # Fixed copper keeps this gap. It must exceed the clearance the router is given
-# (0.15 + 0.03 mm in route.py), or the router sees violations and gives up nearby.
+# (0.10 + 0.02 mm in finish.py), or the router sees violations and gives up nearby.
 ROUTER_GAP = 0.19
 U1_VIA_RING = 2.35
 U1_ELBOW = 2.7  # inside the pin row, whose pads end 3.0 mm from the centre  # plane vias under U1 sit this far from its centre

@@ -54,21 +54,26 @@ The link port is a USB-C receptacle, but it carries UART and 5 V, not USB. It is
 
 The KiCad files are generated. Do not edit them by hand; change the scripts and run them again.
 
-You need Docker and the `kicad/kicad:10.0.7-full` image. Routing also needs [Freerouting](https://github.com/freerouting/freerouting) 2.5.0 and Java 21 or later.
+You need Docker and the `kicad/kicad:10.0.7-full` image.
 
 From the repository root:
 
 ```sh
-hw/ergodox-rp2040/tools/build.sh /path/to/freerouting-2.5.0.jar
+hw/ergodox-rp2040/tools/build.sh
 ```
 
 The script runs these steps for both halves:
 
 1. `build_board.py` writes the schematics and places every part.
-2. `route.py export` writes a Specctra file for the router.
-3. Freerouting routes the board. This takes up to 30 minutes per half.
-4. `route.py import` reads the routes back.
-5. `kicad-cli pcb drc` fills the zones and writes the reports to `hw/ergodox-rp2040/reports`.
+2. `kicad-cli pcb drc` lists the open connections.
+3. `finish.py` routes them. It is a grid router written for this board: 0.1 mm signal tracks, 0.4 mm power tracks and 0.2907 mm USB tracks, on the outer layers and on In2 round the controller. This takes one to three hours per half.
+4. `kicad-cli pcb drc` fills the zones and writes the reports to `hw/ergodox-rp2040/reports`.
+
+Write the JLCPCB files (Gerber zip, BOM and CPL) to `hw/ergodox-rp2040/fab` with:
+
+```sh
+hw/ergodox-rp2040/tools/export_fab.sh
+```
 
 Render the boards again after a change:
 
@@ -106,4 +111,4 @@ The firmware has not been built or run on hardware yet. LED brightness is capped
 
 ## Credits
 
-Based on the open [ErgoDox](https://github.com/Ergodox-io/ErgoDox) PCB and the acrylic case designed by Litster. Keyswitch footprints are from ai03's MX_V2 library. Routing is done with Freerouting.
+Based on the open [ErgoDox](https://github.com/Ergodox-io/ErgoDox) PCB and the acrylic case designed by Litster. Keyswitch footprints are from ai03's MX_V2 library.

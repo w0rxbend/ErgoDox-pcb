@@ -8,6 +8,9 @@ then routes each open connection with a grid search on the two outer layers,
 and on In2 inside the +3V3 pour round the controller, where the pour flows
 round the tracks. In2 costs more, so it carries only what the outer layers
 cannot.
+Each net gets the track width of its netclass in the project file. A net
+whose wide track finds no way through gets a 0.1 mm track instead, and is
+named in the summary.
 A connection that is fenced in may push through routes of other nets that
 this run laid. Pushed routes are taken out and their links go back in the
 queue. Copper that was on the board before the run is never moved: pushing
@@ -22,6 +25,7 @@ stop working.
 Run DRC again afterwards: this script does not judge its own work.
 """
 
+import fnmatch
 import heapq
 import json
 import math
@@ -29,6 +33,7 @@ import re
 import sys
 from array import array
 from collections import deque
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pcbnew
@@ -65,6 +70,20 @@ SIDES = (FRONT, BACK, INNER)
 LAYER = {FRONT: pcbnew.F_Cu, BACK: pcbnew.B_Cu, INNER: pcbnew.In2_Cu}
 
 
+@dataclass(frozen=True)
+class Net:
+    """A net as the router sees it.
+
+    reach: cell offsets round a track centre that must be open too, so a track
+    wider than TRACK keeps its clearance. (0,) for a TRACK-wide net.
+    """
+
+    item: object  # KiCad's net
+    code: int
+    width: float  # mm
+    reach: tuple
+
+
 class Route:
     """Unlocked tracks and vias of one net that are taken out together.
 
@@ -72,8 +91,9 @@ class Route:
     route out leaves exactly these open.
     """
 
-    def __init__(self, code, items, links):
+    def __init__(self, code, width, items, links):
         self.code = code
+        self.width = width  # mm, of its tracks
         self.items = items
         self.links = links
         self.cells = []  # (sheet, index) this route closes to other nets
@@ -301,6 +321,20 @@ def load(board):
     return grid
 
 
+def reach_of(grid, width):
+    """Offsets of the cells a track of this width needs open round its centre.
+
+    The fixed cells already keep TRACK / 2 off; the rest of the half width is
+    checked here, plus half a cell diagonal for sampling at cell centres.
+    """
+    if width <= TRACK:
+        return (0,)
+    radius = ((width - TRACK) / 2 + GRID / math.sqrt(2)) / GRID
+    span = int(radius)
+    return tuple(dy * grid.width + dx for dy in range(-span, span + 1) for dx in range(-span, span + 1)
+                 if dx * dx + dy * dy <= radius * radius)
+
+
 def toll(grid, sheet, i, net, push, pushed):
     """Price of entering a cell: 0 when free, None when closed.
 
@@ -317,18 +351,31 @@ def toll(grid, sheet, i, net, push, pushed):
     return price
 
 
+def toll_around(grid, sheet, i, net, push, pushed):
+    """toll for a track centre of this net at cell i: every cell in its reach must be open."""
+    if len(net.reach) == 1:
+        return toll(grid, sheet, i, net.code, push, pushed)
+    price = 0
+    for offset in net.reach:
+        part = toll(grid, sheet, i + offset, net.code, push, pushed)
+        if part is None:
+            return None
+        price += part
+    return price
+
+
 def moves(grid, net, side, i, push, pushed):
     """Cells one move away from (side, i), with the price of each move."""
     width = grid.width
     for step, length in ((1, 1.0), (-1, 1.0), (width, 1.0), (-width, 1.0),
                          (width + 1, 1.4142), (width - 1, 1.4142), (-width + 1, 1.4142), (-width - 1, 1.4142)):
-        price = toll(grid, side, i + step, net, push, pushed)
+        price = toll_around(grid, side, i + step, net, push, pushed)
         if price is None:
             continue
         if length > 1.0:  # a diagonal may not cut the corner of a closed cell
             across = step - (width if step > 1 else -width)
-            corner_a = toll(grid, side, i + across, net, push, pushed)
-            corner_b = toll(grid, side, i + step - across, net, push, pushed)
+            corner_a = toll(grid, side, i + across, net.code, push, pushed)
+            corner_b = toll(grid, side, i + step - across, net.code, push, pushed)
             if corner_a is None or corner_b is None:
                 continue
             price += corner_a + corner_b
@@ -337,7 +384,7 @@ def moves(grid, net, side, i, push, pushed):
     if drill is None:
         return
     for other in SIDES:
-        landing = toll(grid, other, i, net, push, pushed) if other != side else None
+        landing = toll_around(grid, other, i, net, push, pushed) if other != side else None
         if landing is not None:
             yield other, i, VIA_COST + drill + landing
 
@@ -399,13 +446,15 @@ def in_the_way(grid, net, path):
     width = grid.width
     found = []
     for (side_a, col_a, row_a), (side_b, col_b, row_b) in zip(path, path[1:]):
+        entered = row_b * width + col_b
+        spots = [(side_b, entered + offset) for offset in net.reach]
         if side_a != side_b:
-            spots = [(VIA, row_a * width + col_a), (side_b, row_b * width + col_b)]
-        else:  # the cell entered, and both corner cells of a diagonal move
-            spots = [(side_b, row_b * width + col_b), (side_b, row_a * width + col_b), (side_b, row_b * width + col_a)]
+            spots.append((VIA, row_a * width + col_a))
+        else:  # both corner cells of a diagonal move
+            spots += [(side_b, row_a * width + col_b), (side_b, row_b * width + col_a)]
         for sheet, i in spots:
             for owner in grid.laid[sheet].get(i, ()):
-                if owner not in found and (owner.code != net or sheet == VIA):
+                if owner not in found and (owner.code != net.code or sheet == VIA):
                     found.append(owner)
     return found
 
@@ -423,15 +472,16 @@ def corners(path):
 
 def lay(board, grid, net, path, link):
     """Add the path to the board as one route for the link, and close its cells to other nets."""
-    route = Route(net.GetNetCode(), [], [link])
+    route = Route(net.code, net.width, [], [link])
     (start_mm, _), (goal_mm, _) = link
     points = [(side, grid.centre(col, row)) for side, col, row in corners(path)]
     points = [(points[0][0], start_mm)] + points + [(points[-1][0], goal_mm)]
     for (side_a, a), (side_b, b) in zip(points, points[1:]):
         if side_a != side_b:
-            item, shape = add_via(board, net, *a), copper_keep_out(SIDES, a, a, VIA_RADIUS)
+            item, shape = add_via(board, net.item, *a), copper_keep_out(SIDES, a, a, VIA_RADIUS)
         else:
-            item, shape = add_track(board, net, LAYER[side_a], a, b, TRACK), copper_keep_out((side_a,), a, b, TRACK / 2)
+            item = add_track(board, net.item, LAYER[side_a], a, b, net.width)
+            shape = copper_keep_out((side_a,), a, b, net.width / 2)
             route.inner = route.inner or side_a == INNER
         if item:
             route.items.append(item)
@@ -456,11 +506,23 @@ def lift(board, grid, route):
     grid.lift(route)
 
 
+def find_path(grid, net, link, pushed):
+    """(net, path) for the link: at the net's width, else at TRACK. (net, None) when fenced in."""
+    (a_mm, a_sides), (b_mm, b_sides) = link
+    start, goal = (*grid.cell(*a_mm), a_sides), (*grid.cell(*b_mm), b_sides)
+    push = sum(pushed.values()) < MAX_RIPS
+    path = search(grid, net, start, goal, push, pushed)
+    if path is None and net.width > TRACK:
+        net = replace(net, width=TRACK, reach=(0,))
+        path = search(grid, net, start, goal, push, pushed)
+    return net, path
+
+
 def route_all(board, grid, links, nets):
     """Route every link, round the queue, putting back the links of pushed routes.
 
-    links: (net code, link) in order. Returns the links given up, the number of
-    pushes, and the routes now on the board.
+    links: (net code, link) in order. nets: net code to Net. Returns the links
+    given up, the number of pushes, and the routes now on the board.
     """
     queue = deque(links)
     failures, pushed = {}, {}
@@ -468,25 +530,32 @@ def route_all(board, grid, links, nets):
     laid = 0
     while queue:
         code, link = queue.popleft()
-        (a_mm, a_sides), (b_mm, b_sides) = link
-        start, goal = (*grid.cell(*a_mm), a_sides), (*grid.cell(*b_mm), b_sides)
-        path = search(grid, code, start, goal, sum(pushed.values()) < MAX_RIPS, pushed)
+        net, path = find_path(grid, nets[code], link, pushed)
         if path is None:
+            (a_mm, _), (b_mm, _) = link
             key = (code, a_mm, b_mm)
             failures[key] = failures.get(key, 0) + 1
             (given_up if failures[key] >= TRIES else queue).append((code, link))
             continue
-        for other in in_the_way(grid, code, path):
+        for other in in_the_way(grid, net, path):
             lift(board, grid, other)
             alive.discard(other)
             pushed[other.code] = pushed.get(other.code, 0) + 1
             queue.extend((other.code, other_link) for other_link in other.links)
-        alive.add(lay(board, grid, nets[code], path, link))
+        alive.add(lay(board, grid, net, path, link))
         laid += 1
         if laid % PROGRESS == 0:
             print(f"  {laid} laid, {len(queue)} queued, {sum(pushed.values())} pushes, "
                   f"{len(given_up)} given up", flush=True)
     return given_up, sum(pushed.values()), alive
+
+
+def class_widths(project_path):
+    """Function from net name to the track width (mm) of its netclass in the project file."""
+    settings = json.loads(project_path.read_text())["net_settings"]
+    width = {netclass["name"]: netclass["track_width"] for netclass in settings["classes"]}
+    patterns = [(rule["pattern"], width[rule["netclass"]]) for rule in settings["netclass_patterns"]]
+    return lambda name: next((w for pattern, w in patterns if fnmatch.fnmatchcase(name, pattern)), width["Default"])
 
 
 def end_of(item):
@@ -502,8 +571,9 @@ def main(side, report_path):
     path = ROOT / side / f"ergodox-rp2040-{side}.kicad_pcb"
     board = pcbnew.LoadBoard(str(path))
     report = json.loads(Path(report_path).read_text())
-    nets = {pad.GetNetname(): pad.GetNet() for pad in board.GetPads()}
-    codes = {name: net.GetNetCode() for name, net in nets.items()}
+    width_of = class_widths(path.with_suffix(".kicad_pro"))  # read before SaveBoard rewrites it
+    items = {pad.GetNetname(): pad.GetNet() for pad in board.GetPads()}
+    codes = {name: item.GetNetCode() for name, item in items.items()}
 
     # Copper named in a violation is taken out; DRC reports the links it leaves open next time.
     faulty = {item["uuid"] for violation in report["violations"] for item in violation["items"]}
@@ -515,26 +585,31 @@ def main(side, report_path):
     for entry in report["unconnected_items"]:
         (name, a), (_, b) = (end_of(item) for item in entry["items"])
         links.append((codes[name], (a, b)))
-    # Controller pins first, then the shortest: those have the fewest ways out.
+    nets = {codes[name]: Net(item, codes[name], width_of(name), reach_of(grid, width_of(name)))
+            for name, item in items.items()}
+    # Wide nets first, as they need the most room; then controller pins and
+    # the shortest links, which have the fewest ways out.
     controller = {pad.GetNetCode() for pad in board.FindFootprintByReference("U1").Pads()}
-    links.sort(key=lambda entry: (entry[0] not in controller, math.dist(entry[1][0][0], entry[1][1][0])))
-    by_code = {net.GetNetCode(): net for net in nets.values()}
+    links.sort(key=lambda entry: (-nets[entry[0]].width, entry[0] not in controller,
+                                  math.dist(entry[1][0][0], entry[1][1][0])))
     best = None
     for attempt in range(PASSES):
-        given_up, pushes, alive = route_all(board, grid, links, by_code)
+        given_up, pushes, alive = route_all(board, grid, links, nets)
         print(f"{side}: pass {attempt + 1}, {len(given_up)} of {len(links)} links open", flush=True)
         if best is None or len(given_up) < len(best[0]):
-            best = (given_up, pushes)
+            narrow = {route.code for route in alive if route.width < nets[route.code].width}
+            best = (given_up, pushes, narrow)
             save(board, path, alive)
         if not given_up:
             break
         for route in alive:  # start again from the board as loaded, hard links first
             lift(board, grid, route)
         links = given_up + [entry for entry in links if entry not in given_up]
-    given_up, pushes = best
-    names = sorted({name for name, code in codes.items() for c, _ in given_up if c == code})
+    given_up, pushes, narrow = best
+    names = {code: name for name, code in codes.items()}
     print(f"{side}: took out {len(bad)} faulty items, {len(links)} links to route, "
-          f"{pushes} pushes, given up {len(given_up)}: {names}", flush=True)
+          f"{pushes} pushes, given up {len(given_up)}: {sorted({names[c] for c, _ in given_up})}, "
+          f"at {TRACK} mm instead of the class width: {sorted(names[c] for c in narrow)}", flush=True)
 
 
 if __name__ == "__main__":

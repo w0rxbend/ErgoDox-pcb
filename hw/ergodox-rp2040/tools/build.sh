@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 # Generate, route and check both ErgoDox RP2040 boards.
 #
-#   tools/build.sh /path/to/freerouting-2.5.0.jar
+#   tools/build.sh
 #
-# Needs Docker with kicad/kicad:10.0.7-full, and Java 21+ for Freerouting.
-# Routing takes up to 30 minutes per half; the halves run in parallel.
+# Needs Docker with kicad/kicad:10.0.7-full.
+# finish.py takes one to three hours per half; the halves run in parallel.
 set -euo pipefail
-
-jar=${1:?usage: build.sh /path/to/freerouting.jar}
-[[ -f $jar ]] || { echo "no such file: $jar" >&2; exit 1; }
 
 repo=$(cd "$(dirname "$0")/../../.." && pwd)
 hw=hw/ergodox-rp2040
@@ -24,17 +21,19 @@ kicad python3 tools/build_board.py
 
 route() {
   local side=$1
-  kicad python3 tools/route.py export "$side" "/route/$side.dsn"
-  # No fanout stage: it puts a via on every SMD pin and chokes the RP2040.
-  # place.py already ties the power pads to the planes.
-  java -jar "$jar" -de "$work/$side.dsn" -do "$work/$side.ses" \
-    --router.autorouter.max_passes=120 --router.fanout.enabled=false \
-    --gui.enabled=false >"$work/$side-router.log" 2>&1
-  kicad python3 tools/route.py import "$side" "/route/$side.ses"
+  local project=$side/ergodox-rp2040-$side
+  # The open links of the placed board, for finish.py.
+  kicad kicad-cli pcb drc --refill-zones --severity-error --format json \
+    -o "/route/$side-open.json" "$project.kicad_pcb" >/dev/null
+  # Saving the board rewrites the project file with KiCad's defaults; keep the generated one.
+  cp "$repo/$hw/$project.kicad_pro" "$work/$side.kicad_pro"
+  kicad python3 tools/finish.py "$side" "/route/$side-open.json" 2>&1 | grep -v "memory leak"
+  cp "$work/$side.kicad_pro" "$repo/$hw/$project.kicad_pro"
 }
-route right &
-route left &
-wait
+route right & right=$!
+route left & left=$!
+wait "$right"
+wait "$left"
 
 mkdir -p "$repo/$hw/reports"
 for side in right left; do
@@ -44,6 +43,7 @@ for side in right left; do
   # Fills the zones, saves them into the board, then checks it.
   kicad kicad-cli pcb drc --refill-zones --save-board --schematic-parity \
     --severity-error --format json -o "reports/$side-drc.json" "$project.kicad_pcb"
+  cp "$work/$side.kicad_pro" "$repo/$hw/$project.kicad_pro"
   python3 - "$repo/$hw/reports/$side-drc.json" "$side" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))
